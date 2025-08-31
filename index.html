@@ -13,9 +13,6 @@
       --muted: #9aa4b2;
       --text: #e6edf3;
       --accent: #4f8cff;
-      --ok: #2ecc71;
-      --warn: #f1c40f;
-      --danger: #e74c3c;
       --card: #171a21;
       --border: #232733;
     }
@@ -39,7 +36,7 @@
     }
 
     label { display:block; font-size:12px; color: var(--muted); margin-bottom: 6px; }
-    input[type="text"], input[type="number"], input[type="datetime-local"], select {
+    input[type="text"], input[type="datetime-local"], select {
       width:100%; background: var(--card); color: var(--text); border:1px solid var(--border); border-radius: 10px; padding:10px 12px; box-sizing: border-box;
     }
     .metric-checks { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
@@ -49,7 +46,6 @@
     button { background: var(--accent); color:#fff; border:none; border-radius: 10px; padding:10px 14px; cursor:pointer; font-weight:600; letter-spacing:.2px; }
     button.secondary { background: transparent; color: var(--text); border:1px solid var(--border); }
     button.ghost { background: transparent; color: var(--muted); border:1px dashed var(--border); }
-    button.warn { background: var(--warn); color:#111; }
     button:disabled { opacity:.6; cursor: not-allowed; }
 
     .grid { display:grid; grid-template-columns: 1fr; gap: 12px; margin-top: 16px; }
@@ -83,7 +79,7 @@
     <header>
       <h1>ESP32 Sensors Monitor</h1>
       <div class="right">
-        <span id="status" class="status">Ready</span>
+        <span id="status" class="status">ready</span>
       </div>
     </header>
 
@@ -97,7 +93,8 @@
         </div>
         <div>
           <label>Device ID</label>
-          <input id="deviceId" type="number" min="1" step="1" placeholder="1" />
+          <input id="deviceId" type="text" placeholder="1 または UUID (例: 232928c2-22a1-498d-aec0-71d0a48ee43a)" />
+          <div class="hint">整数IDでもUUIDでもOK。バックエンドは <code>device_id::text</code> で比較します。</div>
         </div>
         <div>
           <label>Start (local)</label>
@@ -118,12 +115,19 @@
         <div>
           <label>CORS Proxy（到達不可時の回避用）</label>
           <select id="corsMode">
-            <option value="off" selected>OFF（推奨）</option>
+            <option value="auto" selected>AUTO（直→proxy順に試行）</option>
+            <option value="off">OFF（直に叩く）</option>
             <option value="corsproxy">corsproxy.io</option>
             <option value="allorigins">allorigins.win</option>
-            <option value="isogit">isomorphic‑git proxy</option>
+            <option value="isogit">isomorphic-git proxy</option>
           </select>
-          <div class="hint">CORS エラー時のみ使用。バックエンド側で CORS を有効化するのが本来の解。</div>
+          <div class="hint">CORS エラー時のみ使用。サーバ側で CORS を有効化するのが本来の解。</div>
+        </div>
+        <div>
+          <label>Options</label>
+          <div class="metric-checks">
+            <label><input type="checkbox" id="mockMode"> モックデータを使用（API到達不可時）</label>
+          </div>
         </div>
       </div>
       <div class="btnrow" style="margin-top:12px;">
@@ -134,7 +138,7 @@
         <button id="latestBtn" class="ghost">最新を更新</button>
         <button id="dlCsvBtn" class="ghost">CSVダウンロード</button>
         <button id="pingBtn" class="ghost">API疎通 (Ping)</button>
-        <button id="selfTestBtn" class="ghost">Self‑Test</button>
+        <button id="selfTestBtn" class="ghost">Self-Test</button>
         <label style="margin-left:auto; display:flex; align-items:center; gap:8px;">
           <input id="autoRefresh" type="checkbox"> 自動更新（Latestのみ）
         </label>
@@ -145,6 +149,10 @@
         </select>
       </div>
       <div id="errorBox" class="errorbox"></div>
+      <div class="hint">GitHub Pages で Actions デプロイを使う場合、下の <b>Copy Pages Workflow</b> ボタンで最小構成の YAML をコピーできます。</div>
+      <div class="btnrow" style="margin-top:8px;">
+        <button id="copyWorkflowBtn" class="ghost">Copy Pages Workflow</button>
+      </div>
     </section>
 
     <div class="grid">
@@ -177,14 +185,18 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
 
+  <script type="application/json" id="pages-workflow">{
+"yaml": "name: Deploy static to Pages\non:\n  push:\n    branches: [ main ]\n\npermissions:\n  pages: write\n  id-token: write\n\nconcurrency:\n  group: \"pages\"\n  cancel-in-progress: true\n\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/upload-pages-artifact@v3\n        with:\n          path: '.'\n  deploy:\n    needs: build\n    runs-on: ubuntu-latest\n    environment:\n      name: github-pages\n      url: ${{ steps.deployment.outputs.page_url }}\n    steps:\n      - id: deployment\n        uses: actions/deploy-pages@v4\n"}
+  </script>
+
   <script>
     // ===== Utilities =====
     const $ = (sel) => document.querySelector(sel);
     const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
     function toISOZFromLocalInput(v){
-      if(!v) return null; // expects 'YYYY-MM-DDTHH:mm'
-      const d = new Date(v); // local time
+      if(!v) return null;
+      const d = new Date(v); // local
       return d.toISOString(); // UTC Z
     }
     function fromDateToLocalInputValue(d){
@@ -238,6 +250,7 @@
         if(typeof p.auto==='boolean') $('#autoRefresh').checked = p.auto;
         if(p.interval) $('#autoInterval').value = p.interval;
         if(p.corsMode) $('#corsMode').value = p.corsMode;
+        if(typeof p.mock==='boolean' && $('#mockMode')) $('#mockMode').checked = p.mock;
       }catch(e){ console.warn('prefs parse fail', e); }
     }
 
@@ -249,12 +262,24 @@
       if(b.endsWith('/')) b = b.slice(0,-1);
       return b;
     }
-    function applyCorsProxy(url){
-      const mode = $('#corsMode').value;
+    function getProxyUrl(mode, url){
       if(mode === 'corsproxy') return `https://corsproxy.io/?${encodeURIComponent(url)}`;
       if(mode === 'allorigins') return `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
       if(mode === 'isogit') return `https://cors.isomorphic-git.org/${url}`;
-      return url; // off
+      return url; // off or unknown
+    }
+    function buildFetchList(url){
+      const mode = $('#corsMode').value;
+      if(mode === 'auto'){
+        return [
+          { label:'direct', url },
+          { label:'corsproxy', url: getProxyUrl('corsproxy', url) },
+          { label:'allorigins', url: getProxyUrl('allorigins', url) },
+          { label:'isogit', url: getProxyUrl('isogit', url) },
+        ];
+      }
+      if(mode === 'off') return [{ label:'direct', url }];
+      return [{ label: mode, url: getProxyUrl(mode, url) }];
     }
 
     // ===== Chart =====
@@ -325,7 +350,7 @@
       const header = ['ts','metric','value','meta'];
       const lines = [header.join(',')];
       for(const r of series){
-        const meta = r.meta ? JSON.stringify(r.meta).replace(/"/g,'""') : '';
+        const meta = r.meta ? JSON.stringify(r.meta).replace(/\"/g,'\"\"') : '';
         const row = [r.ts, r.metric, r.value, `"${meta}"`];
         lines.push(row.join(','));
       }
@@ -345,7 +370,7 @@
     // ===== Mock data (optional) =====
     function generateMockSeries(start, end){
       const out = [];
-      const ms = 60*1000; // 1min step
+      const ms = 60*1000;
       for(let t = start.getTime(); t < end.getTime(); t += 5*ms){
         const d = new Date(t);
         const base = 20 + 5*Math.sin(t/3.6e6);
@@ -364,22 +389,29 @@
       ];
     }
 
-    // ===== Data loading (per-endpoint AbortControllers) =====
+    // ===== Data loading with AUTO CORS fallback =====
     const controllers = { latest: null, series: null };
     async function fetchJSON(url, key){
-      try {
-        const controller = new AbortController();
-        if(key){ if(controllers[key]) controllers[key].abort(); controllers[key] = controller; }
-        const finalUrl = applyCorsProxy(url);
-        const res = await fetch(finalUrl, { signal: controller.signal, cache:'no-store', mode:'cors' });
-        if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-        return await res.json();
-      } catch(e){ throw e; }
+      const attempts = buildFetchList(url);
+      let lastErr = null;
+      for(const attempt of attempts){
+        try {
+          const controller = new AbortController();
+          if(key){ if(controllers[key]) controllers[key].abort(); controllers[key] = controller; }
+          const res = await fetch(attempt.url, { signal: controller.signal, cache:'no-store', mode:'cors' });
+          if(!res.ok) throw new Error(`${res.status} ${res.statusText} via ${attempt.label}`);
+          const json = await res.json();
+          setStatus(`${key||'fetch'} ok (via ${attempt.label})`);
+          return json;
+        } catch(e){ lastErr = e; console.warn('fetch attempt failed', attempt.label, e); }
+      }
+      throw lastErr || new Error('fetch failed');
     }
 
     async function loadLatest(){
       const base = buildBase();
-      const deviceId = ($('#deviceId').value || '1').trim();
+      const deviceId = ($('#deviceId').value || '').trim();
+      if(!deviceId){ showError('Device ID を入力してください（整数 or UUID）'); return; }
       setStatus('loading latest…'); showError('');
       try{
         const j = await fetchJSON(`${base}/latest?device_id=${encodeURIComponent(deviceId)}`, 'latest');
@@ -394,15 +426,16 @@
         } else {
           setStatus('latest error');
           const isFile = location.protocol === 'file:' || location.origin === 'null';
-          const tip = isFile ? '\n※ 現在 file:// から開いているため CORS が厳しくなります。GitHub Pages など https:// 配下から開いてください。' : '';
-          showError(`最新値の取得に失敗しました。原因例: ネットワーク/URL/サーバ停止/CORS。\n詳細: ${e instanceof DOMException ? e.name : e.message}${tip}`);
+          const tip = isFile ? '\n※ 現在 file:// から開いているため CORS が厳しくなります。GitHub Pages (https://) で開いてください。' : '';
+          showError(`最新値の取得に失敗しました。原因例: device_id 不一致 / ネットワーク / URL / サーバ停止 / CORS。\n詳細: ${e instanceof DOMException ? e.name : e.message}${tip}`);
         }
       }
     }
 
     async function loadSeries(){
       const base = buildBase();
-      const deviceId = ($('#deviceId').value || '1').trim();
+      const deviceId = ($('#deviceId').value || '').trim();
+      if(!deviceId){ showError('Device ID を入力してください（整数 or UUID）'); return; }
       const startISO = toISOZFromLocalInput($('#startAt').value);
       const endISO = toISOZFromLocalInput($('#endAt').value);
       const selected = $$('.metricChk').filter(c=>c.checked).map(c=>c.value);
@@ -432,8 +465,8 @@
         } else {
           setStatus('series error');
           const isFile = location.protocol === 'file:' || location.origin === 'null';
-          const tip = isFile ? '\n※ 現在 file:// から開いているため CORS が厳しくなります。GitHub Pages など https:// 配下から開いてください。' : '';
-          showError(`時系列データの取得に失敗しました。原因例: ネットワーク/URL/サーバ停止/CORS。\n詳細: ${e instanceof DOMException ? e.name : e.message}${tip}`);
+          const tip = isFile ? '\n※ 現在 file:// から開いているため CORS が厳しくなります。GitHub Pages (https://) で開いてください。' : '';
+          showError(`時系列データの取得に失敗しました。原因例: device_id 不一致 / ネットワーク / URL / サーバ停止 / CORS。\n詳細: ${e instanceof DOMException ? e.name : e.message}${tip}`);
         }
       }
     }
@@ -441,27 +474,30 @@
     // ===== Ping & Self-Test =====
     async function pingApi(){
       const base = buildBase();
-      const deviceId = ($('#deviceId').value || '1').trim();
+      const deviceId = ($('#deviceId').value || '').trim();
+      if(!deviceId){ alert('Device ID を入力してください'); return; }
       const url = `${base}/latest?device_id=${encodeURIComponent(deviceId)}`;
-      const finalUrl = applyCorsProxy(url);
       setStatus('ping…'); showError('');
-      try{
-        const res = await fetch(finalUrl, { cache:'no-store', mode:'cors' });
-        if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-        const j = await res.json();
-        setStatus('ping ok');
-        alert('Ping OK\n' + JSON.stringify(j, null, 2));
-      }catch(e){
-        setStatus('ping error');
-        showError(`Ping失敗: ${e.message}.\nURL: ${finalUrl}\nヒント: 1) バックエンドで CORS を有効化、2) file:// ではなく https:// から開く、3) 必要に応じて CORS Proxy を ON に。`);
+      const attempts = buildFetchList(url);
+      for(const attempt of attempts){
+        try{
+          const res = await fetch(attempt.url, { cache:'no-store', mode:'cors' });
+          if(!res.ok) throw new Error(`${res.status} ${res.statusText} via ${attempt.label}`);
+          const j = await res.json();
+          setStatus(`ping ok (via ${attempt.label})`);
+          alert('Ping OK\n' + JSON.stringify(j, null, 2));
+          return;
+        }catch(e){ console.warn('ping attempt failed', attempt.label, e); }
       }
+      setStatus('ping error');
+      showError(`Ping失敗。CORSまたは到達性の問題の可能性。\n- サーバ側で CORS を有効化してください。\n- もしくは CORS Proxy を AUTO/ON にしてください。\nOrigin: ${location.origin || 'null'}`);
     }
 
     function selfTests(){
       const results = [];
       const assert = (name, cond) => results.push({ name, pass: !!cond });
 
-      // Test 1: ISO convert round‑trip (minute resolution)
+      // Test 1: ISO convert（分精度）
       const now = new Date(); now.setSeconds(0,0);
       const loc = fromDateToLocalInputValue(now);
       const iso = toISOZFromLocalInput(loc);
@@ -471,7 +507,7 @@
       $('#apiBase').value = 'https://esp32-play.onrender.com/';
       assert('buildBase trims trailing slash', buildBase() === 'https://esp32-play.onrender.com');
 
-      // Test 3: setDatasets accepts empty
+      // Test 3: setDatasets empty ok
       try { setDatasets([], ['temperature']); assert('setDatasets empty ok', true); } catch(e) { assert('setDatasets empty ok', false); }
 
       // Test 4: mock generators
@@ -489,15 +525,16 @@
       try { autoTick(); } finally { window.loadLatest = origLatest; window.loadSeries = origSeries; }
       assert('autoTick only latest', cntLatest===1 && cntSeries===0);
 
-      // Test 6: CORS proxy URL builder
+      // Test 6: CORS fallback list builder
+      $('#corsMode').value = 'auto';
+      const L = buildFetchList('https://x.test/a');
+      assert('auto list 4 items', Array.isArray(L) && L.length===4 && L[0].label==='direct');
       $('#corsMode').value = 'corsproxy';
-      assert('corsproxy.io applied', applyCorsProxy('https://x.test/a') === 'https://corsproxy.io/?https%3A%2F%2Fx.test%2Fa');
-      $('#corsMode').value = 'allorigins';
-      assert('allorigins applied', applyCorsProxy('https://x.test/a') === 'https://api.allorigins.win/raw?url=https%3A%2F%2Fx.test%2Fa');
-      $('#corsMode').value = 'isogit';
-      assert('isogit applied', applyCorsProxy('https://x.test/a') === 'https://cors.isomorphic-git.org/https://x.test/a');
+      const L2 = buildFetchList('https://x.test/a');
+      assert('mode corsproxy -> 1 item', L2.length===1 && L2[0].label==='corsproxy');
       $('#corsMode').value = 'off';
-      assert('proxy off', applyCorsProxy('https://x.test/a') === 'https://x.test/a');
+      const L3 = buildFetchList('https://x.test/a');
+      assert('mode off -> direct', L3.length===1 && L3[0].label==='direct');
 
       const pass = results.filter(r=>r.pass).length;
       const fail = results.length - pass;
@@ -541,28 +578,47 @@
       const rows = window.__lastSeries || [];
       if(!rows.length){ alert('データがありません'); return; }
       const csv = makeCSV(rows);
-      const deviceId = ($('#deviceId').value || '1').trim();
-      download(`series_device${deviceId}.csv`, csv);
+      const deviceId = ($('#deviceId').value || 'device').trim();
+      download(`series_${deviceId}.csv`, csv);
     });
 
     $('#autoRefresh').addEventListener('change', setupAuto);
     $('#autoInterval').addEventListener('change', setupAuto);
 
+    // Copy minimal workflow to clipboard
+    document.addEventListener('click', (e)=>{
+      if(e.target && e.target.id === 'copyWorkflowBtn'){
+        try{
+          const obj = JSON.parse(document.getElementById('pages-workflow').textContent);
+          navigator.clipboard.writeText(obj.yaml).then(()=>{
+            alert('Copied pages.yml to clipboard.\n→ リポジトリに .github/workflows/pages.yml として保存し、Settings → Pages で Source を GitHub Actions にしてください。');
+          });
+        }catch(err){
+          alert('Copy failed: '+ String(err));
+        }
+      }
+    });
+
     // ===== Init =====
     function initDefaults(){
       if(!$('#apiBase').value) $('#apiBase').value = 'https://esp32-play.onrender.com';
-      if(!$('#deviceId').value) $('#deviceId').value = '1';
+      const did = $('#deviceId').value;
+      if(!did) $('#deviceId').value = '1';
       const now = new Date();
       const start = new Date(now.getTime() - 6*3600*1000);
       $('#endAt').value = fromDateToLocalInputValue(now);
       $('#startAt').value = fromDateToLocalInputValue(start);
       $('#originTxt').textContent = location.origin || 'null';
+      // file:// で開いたら CORS Proxy をAUTOのままにしつつ警告
+      if(location.protocol === 'file:' || location.origin === 'null'){
+        showError('ローカル file:// から開いています。CORS のため API 取得が失敗する場合があります。GitHub Pages (https://) で開くか、上の CORS Proxy を AUTO/ON にしてください。');
+      }
     }
 
     loadPrefs();
     initDefaults();
     savePrefs();
-    // Initial load: Latest + Series（Seriesはこの初回のみ自動）
+    // 初回のみ: Latest + Series を読み込み（以後 Series は手動）
     loadLatest();
     loadSeries();
     setupAuto();

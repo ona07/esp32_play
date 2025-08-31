@@ -7,7 +7,7 @@ import psycopg2, psycopg2.extras
 
 # ===================== App & CORS =====================
 DATABASE_URL = os.getenv("DATABASE_URL")
-DEBUG = os.getenv("DEBUG", "0") == "1"   # ← 切り分け時に 1 にしてください（本番は 0 推奨）
+DEBUG = os.getenv("DEBUG", "0") == "1"   # デバッグ時のみ 1 にしてください（本番は 0 推奨）
 
 app = FastAPI()
 app.add_middleware(
@@ -27,8 +27,8 @@ class Measure(BaseModel):
 # ===================== DB helpers =====================
 def conn():
     """
-    Render / Supabase など SSL 必須環境の保険として、
-    DATABASE_URL に sslmode 指定が無ければ require を付与。
+    Render / Supabase 等の SSL 必須環境の保険。
+    DATABASE_URL に sslmode が無ければ require を付ける。
     """
     if not DATABASE_URL:
         raise RuntimeError("DATABASE_URL not set")
@@ -43,10 +43,10 @@ def device_id_from_key(api_key: str):
         return r["id"] if r else None
 
 # ---- ts 列の型に依存しないクエリ生成のための設定 ----
-#   - timestamptz の場合:   TS_EXPR="ts",            TS_GUARD=""
-#   - text/varchar の場合:  TS_EXPR="(ts::timestamptz)", TS_GUARD="AND (ts::text) ~* %s"  (ISO 正規表現)
+#   - timestamptz の場合:   TS_EXPR="ts",                TS_GUARD=""
+#   - text/varchar の場合:  TS_EXPR="(ts::timestamptz)", TS_GUARD=" AND (ts::text) ~* %s"  (ISO 正規表現)
 TS_EXPR: str = "ts"
-TS_GUARD: str = ""     # 追加 WHERE 句（先頭に AND を含む）
+TS_GUARD: str = ""     # 追加 WHERE 句（先頭にスペース＋ANDを含む）
 TS_IS_TEXT: bool = False
 REGEX_ISO = r'^[0-9]{4}-[0-9]{2}-[0-9]{2}[T ][0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?([+-][0-9]{2}:[0-9]{2}|Z)?$'
 
@@ -64,15 +64,13 @@ def detect_ts_conf() -> Tuple[str, str, bool]:
         """)
         row = cur.fetchone()
         dtype = row[0] if row else None
-        # PostgreSQL では 'timestamp with time zone' 等
         if dtype and ("time" in dtype and "zone" in dtype):
             TS_EXPR = "ts"
             TS_GUARD = ""
             TS_IS_TEXT = False
         else:
-            # text / varchar など
             TS_EXPR = "(ts::timestamptz)"
-            TS_GUARD = "AND (ts::text) ~* %s"  # 不正 ts を除外
+            TS_GUARD = " AND (ts::text) ~* %s"
             TS_IS_TEXT = True
     print(f"[BOOT] ts column detected: dtype={dtype}, TS_EXPR={TS_EXPR}, TS_IS_TEXT={TS_IS_TEXT}")
     return TS_EXPR, TS_GUARD, TS_IS_TEXT
@@ -108,15 +106,17 @@ def healthz():
         return {"ok": False, "error": str(e)}
 
 @app.get("/schemaz")
-def schemaz(device_id: Optional[int] = None):
+def schemaz(device_id: Optional[str] = None):
     """
-    テーブル存在や ts 型、（任意）デバイス別の件数などを軽く確認。
+    テーブル存在や ts 型、（任意）デバイス別の件数などを確認。
+    device_id は整数でもUUIDでもOK（::text 比較）。
     """
     out = {}
     try:
         with conn() as c, c.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute("select to_regclass('public.devices') as devices, to_regclass('public.measurements') as measurements;")
-            out["tables"] = cur.fetchone()
+            tables = cur.fetchone()
+            out["tables"] = tables
             cur.execute("""
                 select data_type
                 from information_schema.columns
@@ -126,11 +126,11 @@ def schemaz(device_id: Optional[int] = None):
             out["ts_type"] = row["data_type"] if row else None
             out["ts_expr"] = TS_EXPR
             out["ts_is_text"] = TS_IS_TEXT
-            if device_id is not None:
+            if device_id is not None and tables and tables.get("measurements"):
                 cur.execute("""
                     select metric, count(*) cnt
                     from public.measurements
-                    where device_id=%s
+                    where device_id::text = %s
                     group by 1 order by 1
                 """, (device_id,))
                 out["counts"] = cur.fetchall()
@@ -170,23 +170,23 @@ def ingest(measures: List[Measure], x_api_key: str = Header(default="")):
 
 # ===================== Latest =====================
 # 例:
-#   /latest?device_id=1&metric=temperature
-#   /latest?device_id=1   ← 全メトリクスの最新1件ずつ
+#   /latest?device_id=232928c2-22a1-498d-aec0-71d0a48ee43a&metric=temperature
+#   /latest?device_id=232928c2-22a1-498d-aec0-71d0a48ee43a   ← 全メトリクスの最新1件ずつ
 @app.get("/latest")
 def get_latest(
-    device_id: int = Query(..., description="devices.id"),
+    device_id: str = Query(..., description="devices.id（整数 or UUID）"),
     metric: Optional[Literal["temperature","humidity","distance_ultrasonic"]] = Query(
         None, description="指定時はそのメトリクスだけの最新値"
     ),
 ):
     try:
         with conn() as c, c.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            guard = f" {TS_GUARD}" if TS_IS_TEXT else ""
+            guard = TS_GUARD if TS_IS_TEXT else ""
             if metric:
                 sql = f"""
                     SELECT device_id, {TS_EXPR} AS ts, metric, value, meta
                     FROM public.measurements
-                    WHERE device_id = %s AND metric = %s
+                    WHERE device_id::text = %s AND metric = %s
                     {guard}
                     ORDER BY {TS_EXPR} DESC
                     LIMIT 1
@@ -205,7 +205,7 @@ def get_latest(
                     SELECT DISTINCT ON (metric)
                            device_id, {TS_EXPR} AS ts, metric, value, meta
                     FROM public.measurements
-                    WHERE device_id = %s
+                    WHERE device_id::text = %s
                     {guard}
                     ORDER BY metric, {TS_EXPR} DESC
                 """
@@ -224,11 +224,11 @@ def get_latest(
 
 # ===================== Series =====================
 # 例:
-#   /series?device_id=1&metric=temperature&start=2025-08-31T00:00:00Z&end=2025-08-31T12:00:00Z
-#   /series?device_id=1&start=2025-08-30T00:00:00+09:00&end=2025-08-31T00:00:00+09:00
+#   /series?device_id=232928c2-22a1-498d-aec0-71d0a48ee43a&metric=temperature&start=2025-08-31T00:00:00Z&end=2025-08-31T12:00:00Z
+#   /series?device_id=232928c2-22a1-498d-aec0-71d0a48ee43a&start=2025-08-30T00:00:00+09:00&end=2025-08-31T00:00:00+09:00
 @app.get("/series")
 def get_series(
-    device_id: int = Query(..., description="devices.id"),
+    device_id: str = Query(..., description="devices.id（整数 or UUID）"),
     metric: Optional[Literal["temperature","humidity","distance_ultrasonic"]] = Query(
         None, description="指定時はそのメトリクスのみ"
     ),
@@ -252,13 +252,13 @@ def get_series(
         if end.tzinfo is None:
             end = end.replace(tzinfo=dt.timezone.utc)
 
-        guard = f" {TS_GUARD}" if TS_IS_TEXT else ""
+        guard = TS_GUARD if TS_IS_TEXT else ""
         if metric:
             # device_id → (ガード) → 範囲 → metric の順でパラメータを積む
             sql = f"""
                 SELECT device_id, {TS_EXPR} AS ts, metric, value, meta
                 FROM public.measurements
-                WHERE device_id = %s
+                WHERE device_id::text = %s
                   {guard}
                   AND {TS_EXPR} >= %s
                   AND {TS_EXPR} <  %s
@@ -272,7 +272,7 @@ def get_series(
             sql = f"""
                 SELECT device_id, {TS_EXPR} AS ts, metric, value, meta
                 FROM public.measurements
-                WHERE device_id = %s
+                WHERE device_id::text = %s
                   {guard}
                   AND {TS_EXPR} >= %s
                   AND {TS_EXPR} <  %s
