@@ -15,72 +15,439 @@
       --accent: #4f8cff;
       --card: #171a21;
       --border: #232733;
+      --success: #28a745;
+      --warning: #ffc107;
+      --danger: #dc3545;
     }
+    
+    :root[data-theme="light"] {
+      --bg: #fafafa; 
+      --panel: #ffffff; 
+      --card: #ffffff; 
+      --text: #0a0a0a; 
+      --muted: #57606a; 
+      --border: #e5e7eb; 
+      --accent: #1f6feb;
+      --success: #198754;
+      --warning: #f0ad4e;
+      --danger: #dc3545;
+    }
+    
     @media (prefers-color-scheme: light) {
-      :root {
+      :root:not([data-theme]) {
         --bg: #fafafa; --panel: #ffffff; --card:#ffffff; --text: #0a0a0a; --muted:#57606a; --border:#e5e7eb; --accent:#1f6feb;
       }
     }
+    
     html, body { height: 100%; }
-    body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, Segoe UI, Roboto, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, Segoe UI, Roboto, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif; transition: background-color 0.3s ease, color 0.3s ease; }
+    
     .container { max-width: 1100px; margin: 24px auto 80px; padding: 0 16px; }
-    header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom: 16px; }
+    
+    header { 
+      display: flex; 
+      align-items: center; 
+      justify-content: space-between; 
+      gap: 12px; 
+      margin-bottom: 16px; 
+      flex-wrap: wrap;
+    }
     header h1 { font-size: 20px; margin: 0; letter-spacing: .2px; }
-    header .right { font-size: 12px; color: var(--muted); }
+    
+    .header-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    
+    .theme-toggle {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      transition: all 0.3s ease;
+    }
+    
+    .theme-toggle:hover {
+      background: var(--accent);
+      color: white;
+    }
+    
+    .status-badge {
+      font-size: 12px;
+      padding: 4px 8px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      min-width: 60px;
+      text-align: center;
+    }
+    
+    .status-badge.loading { border-color: var(--warning); color: var(--warning); }
+    .status-badge.success { border-color: var(--success); color: var(--success); }
+    .status-badge.error { border-color: var(--danger); color: var(--danger); }
 
-    .panel { background: var(--panel); border:1px solid var(--border); border-radius: 14px; padding: 16px; box-shadow: 0 1px 0 rgba(0,0,0,.05), 0 8px 30px rgba(0,0,0,.15); }
+    .panel { 
+      background: var(--panel); 
+      border: 1px solid var(--border); 
+      border-radius: 14px; 
+      padding: 16px; 
+      box-shadow: 0 1px 0 rgba(0,0,0,.05), 0 8px 30px rgba(0,0,0,.15); 
+      transition: all 0.3s ease;
+    }
 
-    .controls { display:grid; grid-template-columns: 1fr; gap: 12px; }
+    .controls { 
+      display: grid; 
+      grid-template-columns: 1fr; 
+      gap: 12px; 
+    }
+    
+    /* モバイル対応の改善 */
+    @media (min-width: 480px) {
+      .controls { grid-template-columns: 1fr 1fr; }
+    }
+    
+    @media (min-width: 768px) {
+      .controls { grid-template-columns: 1fr 1fr 1fr; }
+    }
+    
     @media (min-width: 980px) {
-      /* 6カラム（CORS Proxyブロック削除後） */
       .controls { grid-template-columns: 1.3fr .8fr 1fr 1fr 1fr 1.2fr; align-items: end; }
     }
 
-    label { display:block; font-size:12px; color: var(--muted); margin-bottom: 6px; }
+    label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; font-weight: 500; }
+    
     input[type="text"], input[type="datetime-local"], select {
-      width:100%; background: var(--card); color: var(--text); border:1px solid var(--border); border-radius: 10px; padding:10px 12px; box-sizing: border-box;
+      width: 100%; 
+      background: var(--card); 
+      color: var(--text); 
+      border: 1px solid var(--border); 
+      border-radius: 10px; 
+      padding: 10px 12px; 
+      box-sizing: border-box;
+      font-size: 14px;
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
     }
-    .metric-checks { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
-    .metric-checks label { color: var(--text); font-size:14px; margin:0; }
+    
+    input:focus, select:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(79, 140, 255, 0.1);
+    }
+    
+    .metric-checks { 
+      display: flex; 
+      gap: 12px; 
+      flex-wrap: wrap; 
+      align-items: center; 
+    }
+    
+    @media (max-width: 479px) {
+      .metric-checks { flex-direction: column; align-items: flex-start; gap: 8px; }
+    }
+    
+    .metric-checks label { 
+      color: var(--text); 
+      font-size: 14px; 
+      margin: 0; 
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+    }
 
-    .btnrow { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
-    button { background: var(--accent); color:#fff; border:none; border-radius: 10px; padding:10px 14px; cursor:pointer; font-weight:600; letter-spacing:.2px; }
-    button.secondary { background: transparent; color: var(--text); border:1px solid var(--border); }
-    button.ghost { background: transparent; color: var(--muted); border:1px dashed var(--border); }
-    button:disabled { opacity:.6; cursor: not-allowed; }
+    .btnrow { 
+      display: flex; 
+      flex-wrap: wrap; 
+      gap: 8px; 
+      align-items: center; 
+    }
+    
+    @media (max-width: 767px) {
+      .btnrow { justify-content: center; }
+      .btnrow label { margin-left: 0 !important; }
+    }
+    
+    button { 
+      background: var(--accent); 
+      color: #fff; 
+      border: none; 
+      border-radius: 10px; 
+      padding: 10px 14px; 
+      cursor: pointer; 
+      font-weight: 600; 
+      letter-spacing: .2px;
+      font-size: 14px;
+      transition: all 0.3s ease;
+      min-height: 40px;
+    }
+    
+    button:hover:not(:disabled) { 
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(79, 140, 255, 0.3);
+    }
+    
+    button.secondary { 
+      background: transparent; 
+      color: var(--text); 
+      border: 1px solid var(--border); 
+    }
+    
+    button.secondary:hover:not(:disabled) {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+    }
+    
+    button.ghost { 
+      background: transparent; 
+      color: var(--muted); 
+      border: 1px dashed var(--border); 
+    }
+    
+    button.ghost:hover:not(:disabled) {
+      color: var(--text);
+      border-style: solid;
+    }
+    
+    button:disabled { opacity: .6; cursor: not-allowed; transform: none !important; }
 
-    .grid { display:grid; grid-template-columns: 1fr; gap: 12px; margin-top: 16px; }
-    @media (min-width: 840px) { .grid { grid-template-columns: 1fr 1fr; } }
+    .grid { 
+      display: grid; 
+      grid-template-columns: 1fr; 
+      gap: 12px; 
+      margin-top: 16px; 
+    }
+    
+    @media (min-width: 840px) { 
+      .grid { grid-template-columns: 1fr 1fr; } 
+    }
 
-    .cards { display:grid; grid-template-columns: repeat(1, minmax(0,1fr)); gap: 12px; }
-    @media (min-width: 620px) { .cards { grid-template-columns: repeat(3, minmax(0,1fr)); } }
+    .cards { 
+      display: grid; 
+      grid-template-columns: repeat(1, minmax(0,1fr)); 
+      gap: 12px; 
+    }
+    
+    @media (min-width: 480px) { 
+      .cards { grid-template-columns: repeat(2, minmax(0,1fr)); } 
+    }
+    
+    @media (min-width: 620px) { 
+      .cards { grid-template-columns: repeat(3, minmax(0,1fr)); } 
+    }
 
-    .card { background: var(--card); border:1px solid var(--border); border-radius: 14px; padding: 14px; }
-    .metric { font-size:12px; color: var(--muted); text-transform: uppercase; letter-spacing:.5px; }
-    .value { font-size:28px; font-weight: 700; margin: 8px 0 6px; }
-    .timestamp { font-size:12px; color: var(--muted); }
-    .zone { font-size:12px; padding:3px 8px; border-radius:999px; border:1px solid var(--border); display:inline-block; }
+    .card { 
+      background: var(--card); 
+      border: 1px solid var(--border); 
+      border-radius: 14px; 
+      padding: 14px;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 25px rgba(0,0,0,.2);
+    }
+    
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent), #7c3aed);
+    }
+    
+    .metric { 
+      font-size: 12px; 
+      color: var(--muted); 
+      text-transform: uppercase; 
+      letter-spacing: .5px; 
+      font-weight: 600;
+    }
+    
+    .value { 
+      font-size: 28px; 
+      font-weight: 700; 
+      margin: 8px 0 6px; 
+      background: linear-gradient(135deg, var(--accent), #7c3aed);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    
+    .timestamp { 
+      font-size: 12px; 
+      color: var(--muted); 
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    .zone { 
+      font-size: 11px; 
+      padding: 3px 8px; 
+      border-radius: 999px; 
+      border: 1px solid var(--border); 
+      display: inline-block;
+      background: var(--accent);
+      color: white;
+      font-weight: 500;
+    }
 
-    canvas { width:100%; height:380px; }
+    .chart-container {
+      position: relative;
+      height: 400px;
+      width: 100%;
+    }
+    
+    canvas { 
+      width: 100% !important; 
+      height: 100% !important; 
+      border-radius: 8px;
+    }
 
-    table { width:100%; border-collapse: collapse; font-size:13px; }
-    th, td { padding:8px 10px; border-bottom:1px solid var(--border); text-align:left; }
-    th { color: var(--muted); font-weight:600; }
+    .table-container {
+      overflow: auto;
+      max-height: 500px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+    
+    table { 
+      width: 100%; 
+      border-collapse: collapse; 
+      font-size: 13px; 
+    }
+    
+    th, td { 
+      padding: 12px 10px; 
+      border-bottom: 1px solid var(--border); 
+      text-align: left; 
+    }
+    
+    th { 
+      color: var(--muted); 
+      font-weight: 600; 
+      background: var(--card);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    
+    tr:hover {
+      background: rgba(79, 140, 255, 0.05);
+    }
 
-    .footer { margin-top: 36px; font-size:12px; color: var(--muted); }
-    .status { font-size:12px; color: var(--muted); }
+    .footer { 
+      margin-top: 36px; 
+      font-size: 12px; 
+      color: var(--muted); 
+      text-align: center;
+    }
 
-    .hint { font-size:12px; color: var(--muted); margin-top:6px; }
-    .errorbox { margin-top:8px; border:1px dashed var(--border); background:rgba(231,76,60,.06); color:#ffb4a8; padding:10px; border-radius:10px; display:none; white-space:pre-wrap; }
-    .env { font-size:11px; color:var(--muted); margin-top:4px; }
+    .hint { 
+      font-size: 12px; 
+      color: var(--muted); 
+      margin-top: 6px; 
+      line-height: 1.4;
+    }
+    
+    .errorbox { 
+      margin-top: 8px; 
+      border: 1px dashed var(--danger); 
+      background: rgba(220, 53, 69, 0.1); 
+      color: var(--danger); 
+      padding: 12px; 
+      border-radius: 10px; 
+      display: none; 
+      white-space: pre-wrap; 
+      font-size: 13px;
+      line-height: 1.4;
+    }
+    
+    .env { 
+      font-size: 11px; 
+      color: var(--muted); 
+      margin-top: 4px; 
+    }
+    
+    /* モバイル用の改善 */
+    @media (max-width: 767px) {
+      .container { margin: 12px auto 60px; padding: 0 12px; }
+      header { margin-bottom: 12px; }
+      header h1 { font-size: 18px; }
+      .panel { padding: 12px; }
+      .chart-container { height: 300px; }
+      
+      /* ボタンを大きくしてタップしやすく */
+      button {
+        min-height: 44px;
+        padding: 12px 16px;
+        font-size: 15px;
+      }
+      
+      /* 入力フィールドも大きく */
+      input, select {
+        min-height: 44px;
+        padding: 12px;
+        font-size: 16px; /* iOSのズーム防止 */
+      }
+    }
+    
+    /* 超小型デバイス対応 */
+    @media (max-width: 375px) {
+      .btnrow {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      
+      .btnrow button {
+        width: 100%;
+      }
+    }
+
+    /* アニメーション追加 */
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    .panel {
+      animation: fadeInUp 0.6s ease-out;
+    }
+    
+    .card {
+      animation: fadeInUp 0.6s ease-out;
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <header>
       <h1>ESP32 Sensors Monitor</h1>
-      <div class="right">
-        <span id="status" class="status">ready</span>
+      <div class="header-controls">
+        <div class="theme-toggle" id="themeToggle">
+          <span id="themeIcon">🌙</span>
+          <span id="themeText">Dark</span>
+        </div>
+        <div id="status" class="status-badge">ready</div>
       </div>
     </header>
 
@@ -94,8 +461,15 @@
         </div>
         <div>
           <label>Device ID</label>
-          <input id="deviceId" type="text" placeholder="1 または UUID (例: 232928c2-22a1-498d-aec0-71d0a48ee43a)" />
-          <div class="hint">整数IDでもUUIDでもOK。バックエンドは <code>device_id::text</code> で比較します。</div>
+          <select id="deviceSelect">
+            <option value="232928c2-22a1-498d-aec0-71d0a48ee43a">🏠 Home Sensor (232928c2)</option>
+            <option value="b8f3e412-9a7d-4c8f-8e2a-1b5c9d7f3e4a">🏢 Office Sensor (b8f3e412)</option>
+            <option value="a1b2c3d4-5e6f-7g8h-9i0j-k1l2m3n4o5p6">🌡️ Outdoor Sensor (a1b2c3d4)</option>
+            <option value="f9e8d7c6-b5a4-9384-7261-504030201000">🔬 Lab Sensor (f9e8d7c6)</option>
+            <option value="custom">✏️ カスタム入力...</option>
+          </select>
+          <input id="deviceIdCustom" type="text" placeholder="カスタムDevice ID (UUID)" style="display: none; margin-top: 8px;" />
+          <div class="hint">プリセットデバイスを選択するか、カスタム入力でUUIDを指定できます。</div>
         </div>
         <div>
           <label>Start (local)</label>
@@ -147,21 +521,23 @@
 
     <div class="grid">
       <section class="panel">
-        <h3 style="margin:0 0 10px; font-size:16px;">Latest</h3>
+        <h3 style="margin:0 0 16px; font-size:16px;">Latest</h3>
         <div class="cards" id="latestCards"><!-- cards injected here --></div>
       </section>
       <section class="panel">
-        <h3 style="margin:0 0 10px; font-size:16px;">Chart</h3>
-        <canvas id="chart"></canvas>
+        <h3 style="margin:0 0 16px; font-size:16px;">Chart</h3>
+        <div class="chart-container">
+          <canvas id="chart"></canvas>
+        </div>
       </section>
     </div>
 
     <section class="panel" style="margin-top:12px;">
-      <h3 style="margin:0 0 10px; font-size:16px;">Series Table</h3>
-      <div style="overflow:auto;">
+      <h3 style="margin:0 0 16px; font-size:16px;">Series Table</h3>
+      <div class="table-container">
         <table id="seriesTable">
           <thead>
-            <tr><th>ts</th><th>metric</th><th>value</th><th>meta</th></tr>
+            <tr><th>時刻</th><th>メトリック</th><th>値</th><th>メタデータ</th></tr>
           </thead>
           <tbody></tbody>
         </table>
@@ -176,10 +552,65 @@
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
 
   <script type="application/json" id="pages-workflow">{
-"yaml": "name: Deploy static to Pages\non:\n  push:\n    branches: [ main ]\n\npermissions:\n  pages: write\n  id-token: write\n\nconcurrency:\n  group: \"pages\"\n  cancel-in-progress: true\n\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/upload-pages-artifact@v3\n        with:\n          path: '.'\n  deploy:\n    needs: build\n    runs-on: ubuntu-latest\n    environment:\n      name: github-pages\n      url: ${{ steps.deployment.outputs.page_url }}\n    steps:\n      - id: deployment\n        uses: actions/deploy-pages@v4\n"}
-  </script>
+"yaml": "name: Deploy static to Pages\non:\n  push:\n    branches: [ main ]\n\npermissions:\n  pages: write\n  id-token: write\n\nconcurrency:\n  group: \"pages\"\n  cancel-in-progress: true\n\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/upload-pages-artifact@v3\n        with:\n          path: '.'\n  deploy:\n    needs: build\n    runs-on: ubuntu-latest\n    environment:\n      name: github-pages\n      url: ${{ steps.deployment.outputs.page_url }}\n    steps:\n      - id: deployment\n        uses: actions/deploy-pages@v4\n"}</script>
 
   <script>
+    // ===== Theme Management =====
+    function initTheme() {
+      const saved = localStorage.getItem('esp32mon:theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const theme = saved || (prefersDark ? 'dark' : 'light');
+      setTheme(theme);
+    }
+
+    function setTheme(theme) {
+      const root = document.documentElement;
+      const themeIcon = document.getElementById('themeIcon');
+      const themeText = document.getElementById('themeText');
+      
+      if (theme === 'dark') {
+        root.setAttribute('data-theme', 'dark');
+        themeIcon.textContent = '🌙';
+        themeText.textContent = 'Dark';
+      } else {
+        root.setAttribute('data-theme', 'light');
+        themeIcon.textContent = '☀️';
+        themeText.textContent = 'Light';
+      }
+      
+      localStorage.setItem('esp32mon:theme', theme);
+    }
+
+    function toggleTheme() {
+      const current = document.documentElement.getAttribute('data-theme');
+      const newTheme = current === 'dark' ? 'light' : 'dark';
+      setTheme(newTheme);
+    }
+
+    // ===== Device Selection Management =====
+    function getSelectedDeviceId() {
+      const select = $('#deviceSelect');
+      const customInput = $('#deviceIdCustom');
+      
+      if (select.value === 'custom') {
+        return customInput.value.trim();
+      }
+      return select.value;
+    }
+    
+    function updateDeviceDisplay() {
+      const select = $('#deviceSelect');
+      const customInput = $('#deviceIdCustom');
+      
+      if (select.value === 'custom') {
+        customInput.style.display = 'block';
+        customInput.focus();
+      } else {
+        customInput.style.display = 'none';
+      }
+      savePrefs();
+    }
+    
     // ===== Utilities =====
     const $ = (sel) => document.querySelector(sel);
     const $$ = (sel) => Array.from(document.querySelectorAll(sel));
@@ -216,34 +647,48 @@
     function savePrefs(){
       const prefs = {
         apiBase: $('#apiBase').value.trim(),
-        deviceId: $('#deviceId').value.trim(),
+        deviceSelect: $('#deviceSelect').value,
+        deviceIdCustom: $('#deviceIdCustom').value.trim(),
         startAt: $('#startAt').value,
         endAt: $('#endAt').value,
-        metrics: $$('.metricChk').filter(c=>c.checked).map(c=>c.value),
+        metrics: $('.metricChk').filter(c=>c.checked).map(c=>c.value),
         auto: $('#autoRefresh').checked,
         interval: $('#autoInterval').value,
         mock: $('#mockMode') ? $('#mockMode').checked : false,
       };
       localStorage.setItem('esp32mon:prefs', JSON.stringify(prefs));
     }
+    
     function loadPrefs(){
       const raw = localStorage.getItem('esp32mon:prefs');
       if(!raw) return;
       try{
         const p = JSON.parse(raw);
         if(p.apiBase) $('#apiBase').value = p.apiBase;
-        if(p.deviceId) $('#deviceId').value = p.deviceId;
+        if(p.deviceSelect) $('#deviceSelect').value = p.deviceSelect;
+        if(p.deviceIdCustom) $('#deviceIdCustom').value = p.deviceIdCustom;
         if(p.startAt) $('#startAt').value = p.startAt;
         if(p.endAt) $('#endAt').value = p.endAt;
-        if(Array.isArray(p.metrics)) $$('.metricChk').forEach(c=> c.checked = p.metrics.includes(c.value));
+        if(Array.isArray(p.metrics)) $('.metricChk').forEach(c=> c.checked = p.metrics.includes(c.value));
         if(typeof p.auto==='boolean') $('#autoRefresh').checked = p.auto;
         if(p.interval) $('#autoInterval').value = p.interval;
         if(typeof p.mock==='boolean' && $('#mockMode')) $('#mockMode').checked = p.mock;
+        
+        // デバイス選択の表示更新
+        updateDeviceDisplay();
       }catch(e){ console.warn('prefs parse fail', e); }
     }
 
-    function setStatus(msg){ $('#status').textContent = msg; }
-    function showError(msg){ const box=$('#errorBox'); box.textContent=msg; box.style.display = msg? 'block':'none'; }
+    function setStatus(msg, type = 'default'){ 
+      const statusEl = $('#status');
+      statusEl.textContent = msg;
+      statusEl.className = `status-badge ${type}`;
+    }
+    function showError(msg){ 
+      const box = $('#errorBox'); 
+      box.textContent = msg; 
+      box.style.display = msg ? 'block' : 'none'; 
+    }
 
     function buildBase(){
       let b = $('#apiBase').value.trim() || 'https://esp32-play.onrender.com';
@@ -251,36 +696,159 @@
       return b;
     }
 
-    // ===== Chart =====
+    // ===== Chart with Enhanced Tooltips =====
     const ctx = document.getElementById('chart').getContext('2d');
     const chart = new Chart(ctx, {
       type: 'line',
       data: { datasets: [] },
       options: {
         responsive: true,
-        interaction: { mode: 'nearest', intersect: false },
+        maintainAspectRatio: false,
+        interaction: { 
+          mode: 'nearest', 
+          intersect: false,
+          axis: 'x'
+        },
         parsing: false,
         scales: {
-          x: { type: 'time', time: { tooltipFormat: 'yyyy-LL-dd HH:mm' } },
-          y: { title: { display: true, text: 'Temp/Humidity' } },
-          y2: { position:'right', grid: { drawOnChartArea:false }, title:{ display:true, text:'Distance (cm)' } }
+          x: { 
+            type: 'time', 
+            time: { 
+              tooltipFormat: 'yyyy-LL-dd HH:mm:ss',
+              displayFormats: {
+                minute: 'HH:mm',
+                hour: 'MM/dd HH:mm',
+                day: 'MM/dd'
+              }
+            },
+            grid: {
+              color: 'rgba(255, 255, 255, 0.1)'
+            }
+          },
+          y: { 
+            title: { display: true, text: 'Temp/Humidity', color: '#9aa4b2' },
+            grid: {
+              color: 'rgba(255, 255, 255, 0.1)'
+            }
+          },
+          y2: { 
+            position: 'right', 
+            grid: { drawOnChartArea: false }, 
+            title: { display: true, text: 'Distance (cm)', color: '#9aa4b2' }
+          }
         },
-        plugins: { legend: { display: true } }
+        plugins: { 
+          legend: { 
+            display: true,
+            labels: {
+              color: '#e6edf3',
+              usePointStyle: true,
+              padding: 20
+            }
+          },
+          tooltip: {
+            backgroundColor: 'rgba(18, 20, 26, 0.95)',
+            titleColor: '#e6edf3',
+            bodyColor: '#e6edf3',
+            borderColor: '#232733',
+            borderWidth: 1,
+            cornerRadius: 8,
+            displayColors: true,
+            callbacks: {
+              title: function(context) {
+                const date = new Date(context[0].parsed.x);
+                return `📅 ${date.toLocaleDateString('ja-JP')} ${date.toLocaleTimeString('ja-JP')}`;
+              },
+              label: function(context) {
+                const value = context.parsed.y;
+                const metric = context.dataset.label;
+                let icon = '📊';
+                
+                if (metric.includes('温度')) {
+                  icon = value > 25 ? '🔥' : value < 15 ? '❄️' : '🌡️';
+                } else if (metric.includes('湿度')) {
+                  icon = value > 70 ? '💧' : value < 30 ? '🏜️' : '💨';
+                } else if (metric.includes('距離')) {
+                  icon = value > 50 ? '📏' : '📐';
+                }
+                
+                return `${icon} ${metric}: ${value.toFixed(1)} ${getUnit(metric)}`;
+              },
+              footer: function(context) {
+                return `📍 Device: ${getSelectedDeviceId().substring(0, 8)}...`;
+              }
+            }
+          }
+        },
+        elements: {
+          line: {
+            tension: 0.4,
+            borderWidth: 3
+          },
+          point: {
+            radius: 4,
+            hoverRadius: 8,
+            borderWidth: 2,
+            backgroundColor: '#ffffff'
+          }
+        }
       }
     });
 
+    function getUnit(metric) {
+      if (metric.includes('温度')) return '°C';
+      if (metric.includes('湿度')) return '%';
+      if (metric.includes('距離')) return 'cm';
+      return '';
+    }
+
     function setDatasets(series, selected){
       const groups = { temperature: [], humidity: [], distance_ultrasonic: [] };
+      const colors = {
+        temperature: { border: '#ff6b6b', background: 'rgba(255, 107, 107, 0.1)' },
+        humidity: { border: '#4ecdc4', background: 'rgba(78, 205, 196, 0.1)' },
+        distance_ultrasonic: { border: '#ffa726', background: 'rgba(255, 167, 38, 0.1)' }
+      };
+      
       for(const r of series){
         if(!selected.includes(r.metric)) continue;
         const x = new Date(r.ts).getTime();
         const y = Number(r.value);
         if(Number.isFinite(y)) groups[r.metric].push({ x, y });
       }
+      
       const datasets = [];
-      if(selected.includes('temperature')) datasets.push({ label:'温度 (°C)', data: groups.temperature, yAxisID:'y' });
-      if(selected.includes('humidity')) datasets.push({ label:'湿度 (%)', data: groups.humidity, yAxisID:'y' });
-      if(selected.includes('distance_ultrasonic')) datasets.push({ label:'距離 (cm)', data: groups.distance_ultrasonic, yAxisID:'y2' });
+      if(selected.includes('temperature')) {
+        datasets.push({
+          label: '温度 (°C)',
+          data: groups.temperature,
+          yAxisID: 'y',
+          borderColor: colors.temperature.border,
+          backgroundColor: colors.temperature.background,
+          fill: true
+        });
+      }
+      if(selected.includes('humidity')) {
+        datasets.push({
+          label: '湿度 (%)',
+          data: groups.humidity,
+          yAxisID: 'y',
+          borderColor: colors.humidity.border,
+          backgroundColor: colors.humidity.background,
+          fill: true
+        });
+      }
+      if(selected.includes('distance_ultrasonic')) {
+        datasets.push({
+          label: '距離 (cm)',
+          data: groups.distance_ultrasonic,
+          yAxisID: 'y2',
+          borderColor: colors.distance_ultrasonic.border,
+          backgroundColor: colors.distance_ultrasonic.background,
+          fill: true
+        });
+      }
+      
       chart.data.datasets = datasets;
       chart.update();
     }
@@ -291,7 +859,17 @@
       const rows = series.map(r => {
         const tr = document.createElement('tr');
         const metaTxt = r.meta ? JSON.stringify(r.meta) : '';
-        tr.innerHTML = `<td>${new Date(r.ts).toLocaleString()}</td><td>${r.metric}</td><td>${r.value}</td><td>${metaTxt}</td>`;
+        const date = new Date(r.ts);
+        const formattedDate = `${date.toLocaleDateString('ja-JP')} ${date.toLocaleTimeString('ja-JP')}`;
+        const metricName = fmtMetric(r.metric);
+        const formattedValue = fmtValue(r.metric, Number(r.value));
+        
+        tr.innerHTML = `
+          <td>${formattedDate}</td>
+          <td><span style="color: var(--accent); font-weight: 600;">${metricName}</span></td>
+          <td><strong>${formattedValue}</strong></td>
+          <td><code style="font-size: 11px; color: var(--muted);">${metaTxt}</code></td>
+        `;
         return tr;
       });
       rows.forEach(tr => tbody.appendChild(tr));
@@ -306,10 +884,25 @@
         const zonePill = zone ? `<span class="zone">${zone}</span>` : '';
         const div = document.createElement('div');
         div.className = 'card';
+        
+        // アイコンを追加
+        let icon = '📊';
+        const value = Number(r.value);
+        if (r.metric === 'temperature') {
+          icon = value > 25 ? '🔥' : value < 15 ? '❄️' : '🌡️';
+        } else if (r.metric === 'humidity') {
+          icon = value > 70 ? '💧' : value < 30 ? '🏜️' : '💨';
+        } else if (r.metric === 'distance_ultrasonic') {
+          icon = value > 50 ? '📏' : '📐';
+        }
+        
         div.innerHTML = `
-          <div class="metric">${fmtMetric(r.metric)}</div>
-          <div class="value">${fmtValue(r.metric, Number(r.value))}</div>
-          <div class="timestamp">${new Date(r.ts).toLocaleString()} ${zonePill}</div>
+          <div class="metric">${icon} ${fmtMetric(r.metric)}</div>
+          <div class="value">${fmtValue(r.metric, value)}</div>
+          <div class="timestamp">
+            <span>⏰ ${new Date(r.ts).toLocaleString()}</span>
+            ${zonePill}
+          </div>
         `;
         wrap.appendChild(div);
       }
@@ -349,6 +942,7 @@
       }
       return out;
     }
+    
     function generateMockLatest(){
       const now = new Date();
       return [
@@ -366,7 +960,7 @@
       const res = await fetch(url, { signal: controller.signal, cache:'no-store', mode:'cors' });
       if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
       const json = await res.json();
-      setStatus(`${key||'fetch'} ok`);
+      setStatus(`${key||'fetch'} ok`, 'success');
       return json;
     }
 
@@ -374,19 +968,21 @@
       const base = buildBase();
       const deviceId = ($('#deviceId').value || '').trim();
       if(!deviceId){ showError('Device ID を入力してください（整数 or UUID）'); return; }
-      setStatus('loading latest…'); showError('');
+      setStatus('loading latest…', 'loading'); 
+      showError('');
+      
       try{
         const j = await fetchJSON(`${base}/latest?device_id=${encodeURIComponent(deviceId)}`, 'latest');
         renderLatest(j.data || []);
-        setStatus('latest ok');
+        setStatus('latest ok', 'success');
       }catch(e){
         console.error('latest error', e);
         if($('#mockMode') && $('#mockMode').checked){
           renderLatest(generateMockLatest());
-          setStatus('latest mock');
+          setStatus('latest mock', 'success');
           showError(`最新値の取得に失敗: ${e.message}. モックデータを表示中。`);
         } else {
-          setStatus('latest error');
+          setStatus('latest error', 'error');
           const isFile = location.protocol === 'file:' || location.origin === 'null';
           const tip = isFile ? '\n※ 現在 file:// から開いています。ブラウザの制約でクロスオリジンの取得が失敗する場合があります。GitHub Pages など HTTPS ホスティングから開いてください。' : '';
           showError(`最新値の取得に失敗しました。原因例: device_id 不一致 / ネットワーク / URL / サーバ停止 / CORS（サーバ側で許可が必要）。\n詳細: ${e instanceof DOMException ? e.name : e.message}${tip}`);
@@ -400,10 +996,13 @@
       if(!deviceId){ showError('Device ID を入力してください（整数 or UUID）'); return; }
       const startISO = toISOZFromLocalInput($('#startAt').value);
       const endISO = toISOZFromLocalInput($('#endAt').value);
-      const selected = $$('.metricChk').filter(c=>c.checked).map(c=>c.value);
-      if(!startISO || !endISO){ setStatus('start/end未設定'); return; }
-      setStatus('loading series…'); showError('');
+      const selected = $('.metricChk').filter(c=>c.checked).map(c=>c.value);
+      if(!startISO || !endISO){ setStatus('start/end未設定', 'error'); return; }
+      
+      setStatus('loading series…', 'loading'); 
+      showError('');
       const url = `${base}/series?device_id=${encodeURIComponent(deviceId)}&start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}`;
+      
       try{
         const j = await fetchJSON(url, 'series');
         const all = Array.isArray(j.data) ? j.data : [];
@@ -411,7 +1010,7 @@
         setDatasets(filtered, selected);
         renderTable(filtered);
         window.__lastSeries = filtered;
-        setStatus(`series ok (${filtered.length} points)`);
+        setStatus(`series ok (${filtered.length} points)`, 'success');
       }catch(e){
         console.error('series error', e);
         if($('#mockMode') && $('#mockMode').checked){
@@ -422,10 +1021,10 @@
           setDatasets(filtered, selected);
           renderTable(filtered);
           window.__lastSeries = filtered;
-          setStatus(`series mock (${filtered.length} points)`);
+          setStatus(`series mock (${filtered.length} points)`, 'success');
           showError(`時系列の取得に失敗: ${e.message}. モックデータを表示中。`);
         } else {
-          setStatus('series error');
+          setStatus('series error', 'error');
           const isFile = location.protocol === 'file:' || location.origin === 'null';
           const tip = isFile ? '\n※ 現在 file:// から開いています。ブラウザの制約でクロスオリジンの取得が失敗する場合があります。GitHub Pages など HTTPS ホスティングから開いてください。' : '';
           showError(`時系列データの取得に失敗しました。原因例: device_id 不一致 / ネットワーク / URL / サーバ停止 / CORS（サーバ側で許可が必要）。\n詳細: ${e instanceof DOMException ? e.name : e.message}${tip}`);
@@ -436,19 +1035,24 @@
     // ===== Ping & Self-Test =====
     async function pingApi(){
       const base = buildBase();
-      const deviceId = ($('#deviceId').value || '').trim();
-      if(!deviceId){ alert('Device ID を入力してください'); return; }
+      const deviceId = getSelectedDeviceId();
+      if(!deviceId){ 
+        alert('Device ID を選択または入力してください'); 
+        return; 
+      }
       const url = `${base}/latest?device_id=${encodeURIComponent(deviceId)}`;
-      setStatus('ping…'); showError('');
+      setStatus('ping…', 'loading'); 
+      showError('');
+      
       try{
         const res = await fetch(url, { cache:'no-store', mode:'cors' });
         if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         const j = await res.json();
-        setStatus('ping ok');
-        alert('Ping OK\n' + JSON.stringify(j, null, 2));
+        setStatus('ping ok', 'success');
+        alert('🎉 Ping OK\n' + JSON.stringify(j, null, 2));
       }catch(e){
-        setStatus('ping error');
-        showError(`Ping失敗。CORS または到達性の問題の可能性。\n- サーバ側で CORS を有効化してください。\nOrigin: ${location.origin || 'null'}`);
+        setStatus('ping error', 'error');
+        showError(`❌ Ping失敗。CORS または到達性の問題の可能性。\n- サーバ側で CORS を有効化してください。\nOrigin: ${location.origin || 'null'}`);
       }
     }
 
@@ -484,10 +1088,17 @@
       try { autoTick(); } finally { window.loadLatest = origLatest; window.loadSeries = origSeries; }
       assert('autoTick only latest', cntLatest===1 && cntSeries===0);
 
+      // Test 6: Theme switching
+      const currentTheme = document.documentElement.getAttribute('data-theme');
+      toggleTheme();
+      const newTheme = document.documentElement.getAttribute('data-theme');
+      assert('theme toggle works', currentTheme !== newTheme);
+      toggleTheme(); // restore
+
       const pass = results.filter(r=>r.pass).length;
       const fail = results.length - pass;
       console.table(results);
-      alert(`Self-Test: ${pass} passed, ${fail} failed`);
+      alert(`🧪 Self-Test: ${pass} passed, ${fail} failed\n\n${results.map(r => `${r.pass ? '✅' : '❌'} ${r.name}`).join('\n')}`);
     }
 
     // ===== Auto refresh (Latest only) =====
@@ -503,14 +1114,17 @@
     }
 
     // ===== Events =====
+    $('#themeToggle').addEventListener('click', toggleTheme);
+    $('#deviceSelect').addEventListener('change', updateDeviceDisplay);
+    $('#deviceIdCustom').addEventListener('input', savePrefs);
     $('#loadBtn').addEventListener('click', () => { savePrefs(); loadLatest(); loadSeries(); });
     $('#latestBtn').addEventListener('click', () => { savePrefs(); loadLatest(); });
     $('#pingBtn').addEventListener('click', () => { savePrefs(); pingApi(); });
     $('#selfTestBtn').addEventListener('click', selfTests);
 
-    $$('#config input, #config select').forEach(el => el.addEventListener('change', savePrefs));
+    $('#config input, #config select').forEach(el => el.addEventListener('change', savePrefs));
 
-    $$('#config button.secondary[data-quick]').forEach(btn => btn.addEventListener('click', (e)=>{
+    $('#config button.secondary[data-quick]').forEach(btn => btn.addEventListener('click', (e)=>{
       const now = new Date();
       const k = e.currentTarget.getAttribute('data-quick');
       const map = { '1h': 1, '6h': 6, '24h': 24 };
@@ -524,10 +1138,12 @@
 
     $('#dlCsvBtn').addEventListener('click', ()=>{
       const rows = window.__lastSeries || [];
-      if(!rows.length){ alert('データがありません'); return; }
+      if(!rows.length){ alert('📄 データがありません'); return; }
       const csv = makeCSV(rows);
-      const deviceId = ($('#deviceId').value || 'device').trim();
-      download(`series_${deviceId}.csv`, csv);
+      const deviceId = getSelectedDeviceId() || 'device';
+      const deviceName = deviceId.length > 10 ? deviceId.substring(0, 8) : deviceId;
+      download(`series_${deviceName}.csv`, csv);
+      alert('📥 CSVファイルをダウンロードしました！');
     });
 
     $('#autoRefresh').addEventListener('change', setupAuto);
@@ -539,37 +1155,81 @@
         try{
           const obj = JSON.parse(document.getElementById('pages-workflow').textContent);
           navigator.clipboard.writeText(obj.yaml).then(()=>{
-            alert('Copied pages.yml to clipboard.\n→ リポジトリに .github/workflows/pages.yml として保存し、Settings → Pages で Source を GitHub Actions にしてください。');
+            alert('📋 Copied pages.yml to clipboard!\n→ リポジトリに .github/workflows/pages.yml として保存し、Settings → Pages で Source を GitHub Actions にしてください。');
           });
         }catch(err){
-          alert('Copy failed: '+ String(err));
+          alert('❌ Copy failed: '+ String(err));
         }
       }
+    });
+
+    // ===== Mobile Enhancement =====
+    // Add touch feedback
+    document.addEventListener('touchstart', (e) => {
+      if (e.target.tagName === 'BUTTON') {
+        e.target.style.transform = 'scale(0.95)';
+      }
+    });
+
+    document.addEventListener('touchend', (e) => {
+      if (e.target.tagName === 'BUTTON') {
+        setTimeout(() => {
+          e.target.style.transform = '';
+        }, 150);
+      }
+    });
+
+    // Prevent zoom on input focus (iOS)
+    const inputs = $('input, select');
+    inputs.forEach(input => {
+      input.addEventListener('focus', (e) => {
+        if (window.innerWidth < 768) {
+          setTimeout(() => {
+            e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 300);
+        }
+      });
     });
 
     // ===== Init =====
     function initDefaults(){
       if(!$('#apiBase').value) $('#apiBase').value = 'https://esp32-play.onrender.com';
-      const did = $('#deviceId').value;
-      if(!did) $('#deviceId').value = '1';
+      
+      // デバイス選択のデフォルト設定
+      if(!$('#deviceSelect').value) {
+        $('#deviceSelect').value = '232928c2-22a1-498d-aec0-71d0a48ee43a';
+      }
+      updateDeviceDisplay();
+      
       const now = new Date();
       const start = new Date(now.getTime() - 6*3600*1000);
       $('#endAt').value = fromDateToLocalInputValue(now);
       $('#startAt').value = fromDateToLocalInputValue(start);
       $('#originTxt').textContent = location.origin || 'null';
+      
       // file:// で開いたら警告
       if(location.protocol === 'file:' || location.origin === 'null'){
-        showError('ローカル file:// から開いています。ブラウザ制約により API 取得が失敗する場合があります。GitHub Pages など HTTPS でホストして開いてください。');
+        showError('⚠️ ローカル file:// から開いています。ブラウザ制約により API 取得が失敗する場合があります。GitHub Pages など HTTPS でホストして開いてください。');
       }
     }
 
+    // ===== Startup =====
+    initTheme();
     loadPrefs();
     initDefaults();
     savePrefs();
+    
     // 初回のみ: Latest + Series を読み込み（以後 Series は手動）
     loadLatest();
     loadSeries();
     setupAuto();
+
+    // Add loading animation
+    document.body.style.opacity = '0';
+    window.addEventListener('load', () => {
+      document.body.style.transition = 'opacity 0.5s ease';
+      document.body.style.opacity = '1';
+    });
   </script>
 </body>
 </html>
