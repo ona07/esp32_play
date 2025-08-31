@@ -454,9 +454,14 @@
     <section class="panel" id="config">
       <div class="controls">
         <div>
-          <label>API Base URL</label>
-          <input id="apiBase" type="text" placeholder="https://esp32-play.onrender.com" />
-          <div class="hint">例: https://esp32-play.onrender.com（サーバ側で CORS を許可してください）</div>
+          <label>API Base</label>
+          <select id="apiBaseSelect">
+            <option value="https://esp32-play.onrender.com">Render (prod)</option>
+            <option value="http://localhost:8000">Local (dev)</option>
+            <option value="custom">✏️ カスタム入力…</option>
+          </select>
+          <input id="apiBaseCustom" type="text" placeholder="https://example.com" style="display:none; margin-top:8px;" />
+          <div class="hint">プリセット or カスタムを選択できます。CORS をサーバ側で許可してください。</div>
           <div class="env">Origin: <span id="originTxt"></span></div>
         </div>
         <div>
@@ -608,17 +613,39 @@
         customInput.style.display = 'none';
       }
       savePrefs();
+      if($('#autoRefresh')?.checked){ loadLatest(); }
     }
     
     // ===== Utilities =====
     const $ = (sel) => document.querySelector(sel);
     const $$ = (sel) => Array.from(document.querySelectorAll(sel));
-    
-    // デバッグ用：セレクター関数のテスト
-    console.log('Testing selectors:');
-    console.log('$ function:', typeof $);
-    console.log('$ function:', typeof $);
-    console.log('Test $(".metricChk"):', $('.metricChk'));
+
+    function getApiBaseFromUI(){
+      const sel = $('#apiBaseSelect');
+      if(!sel){
+        // 後方互換: 旧 #apiBase が残っている場合
+        let b = ($('#apiBase')?.value?.trim()) || 'https://esp32-play.onrender.com';
+        if(b.endsWith('/')) b = b.slice(0,-1);
+        return b;
+      }
+      const v = sel.value;
+      if(v === 'custom'){
+        let c = ($('#apiBaseCustom').value || '').trim();
+        if(!c) c = 'https://esp32-play.onrender.com';
+        if(c.endsWith('/')) c = c.slice(0,-1);
+        return c;
+      }
+      let b = v.trim();
+      if(b.endsWith('/')) b = b.slice(0,-1);
+      return b;
+    }
+    function updateApiBaseDisplay(){
+      const sel = $('#apiBaseSelect');
+      const custom = $('#apiBaseCustom');
+      if(!sel || !custom) return;
+      custom.style.display = sel.value === 'custom' ? 'block' : 'none';
+      savePrefs();
+    }
 
     function toISOZFromLocalInput(v){
       if(!v) return null;
@@ -651,7 +678,9 @@
 
     function savePrefs(){
       const prefs = {
-        apiBase: $('#apiBase').value.trim(),
+        apiBase: $('#apiBase')?.value?.trim(),
+        apiBaseSelect: $('#apiBaseSelect')?.value,
+        apiBaseCustom: $('#apiBaseCustom')?.value?.trim(),
         deviceSelect: $('#deviceSelect').value,
         deviceIdCustom: $('#deviceIdCustom').value.trim(),
         startAt: $('#startAt').value,
@@ -669,7 +698,10 @@
       if(!raw) return;
       try{
         const p = JSON.parse(raw);
-        if(p.apiBase) $('#apiBase').value = p.apiBase;
+        if(p.apiBase && $('#apiBase')) $('#apiBase').value = p.apiBase;
+        if(p.apiBaseSelect && $('#apiBaseSelect')) $('#apiBaseSelect').value = p.apiBaseSelect;
+        if(p.apiBaseCustom && $('#apiBaseCustom')) $('#apiBaseCustom').value = p.apiBaseCustom;
+        updateApiBaseDisplay();
         if(p.deviceSelect) $('#deviceSelect').value = p.deviceSelect;
         if(p.deviceIdCustom) $('#deviceIdCustom').value = p.deviceIdCustom;
         if(p.startAt) $('#startAt').value = p.startAt;
@@ -696,9 +728,7 @@
     }
 
     function buildBase(){
-      let b = $('#apiBase').value.trim() || 'https://esp32-play.onrender.com';
-      if(b.endsWith('/')) b = b.slice(0,-1);
-      return b;
+      return getApiBaseFromUI();
     }
 
     // ===== Chart with Enhanced Tooltips =====
@@ -971,8 +1001,8 @@
 
     async function loadLatest(){
       const base = buildBase();
-      const deviceId = ($('#deviceId').value || '').trim();
-      if(!deviceId){ showError('Device ID を入力してください（整数 or UUID）'); return; }
+      const deviceId = getSelectedDeviceId();
+      if(!deviceId){ showError('Device ID を選択または入力してください'); return; }
       setStatus('loading latest…', 'loading'); 
       showError('');
       
@@ -997,8 +1027,8 @@
 
     async function loadSeries(){
       const base = buildBase();
-      const deviceId = ($('#deviceId').value || '').trim();
-      if(!deviceId){ showError('Device ID を入力してください（整数 or UUID）'); return; }
+      const deviceId = getSelectedDeviceId();
+      if(!deviceId){ showError('Device ID を選択または入力してください'); return; }
       const startISO = toISOZFromLocalInput($('#startAt').value);
       const endISO = toISOZFromLocalInput($('#endAt').value);
       const selected = $('.metricChk').filter(c=>c.checked).map(c=>c.value);
@@ -1127,7 +1157,10 @@
     $('#pingBtn').addEventListener('click', () => { savePrefs(); pingApi(); });
     $('#selfTestBtn').addEventListener('click', selfTests);
 
-    $('#config input, #config select').forEach(el => el.addEventListener('change', savePrefs));
+    $$('#config input, #config select').forEach(el => el.addEventListener('change', savePrefs));
+
+    $('#apiBaseSelect')?.addEventListener('change', updateApiBaseDisplay);
+    $('#apiBaseCustom')?.addEventListener('input', savePrefs);
 
     $('#config button.secondary[data-quick]').forEach(btn => btn.addEventListener('click', (e)=>{
       const now = new Date();
@@ -1185,7 +1218,7 @@
     });
 
     // Prevent zoom on input focus (iOS)
-    const inputs = $('input, select');
+    const inputs = $$('.container input, .container select');
     inputs.forEach(input => {
       input.addEventListener('focus', (e) => {
         if (window.innerWidth < 768) {
@@ -1198,8 +1231,10 @@
 
     // ===== Init =====
     function initDefaults(){
-      if(!$('#apiBase').value) $('#apiBase').value = 'https://esp32-play.onrender.com';
-      
+      if($('#apiBaseSelect') && !$('#apiBaseSelect').value){
+        $('#apiBaseSelect').value = 'https://esp32-play.onrender.com';
+        updateApiBaseDisplay();
+      }
       // デバイス選択のデフォルト設定
       if(!$('#deviceSelect').value) {
         $('#deviceSelect').value = '232928c2-22a1-498d-aec0-71d0a48ee43a';
@@ -1221,11 +1256,8 @@
     // ===== Startup =====
     console.log('Initializing ESP32 Monitor...');
     
-    // デバッグ用：セレクター関数のテスト
-    console.log('Testing selectors:');
-    console.log('$ function:', typeof $);
-    console.log('$ function:', typeof $);
-    console.log('Test $(".metricChk"):', $('.metricChk'));
+    // デバッグ: セレクター関数の簡易チェック（1回のみ）
+    console.log('Selector test:', typeof $, typeof $$);
     
     try {
       initTheme();
