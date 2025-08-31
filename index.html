@@ -587,7 +587,6 @@
       setTheme(newTheme);
     }
 
-    // ===== Device Selection Management =====
     function getSelectedDeviceId() {
       const select = $('#deviceSelect');
       const customInput = $('#deviceIdCustom');
@@ -613,7 +612,13 @@
     
     // ===== Utilities =====
     const $ = (sel) => document.querySelector(sel);
-    const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+    const $ = (sel) => Array.from(document.querySelectorAll(sel));
+    
+    // デバッグ用：セレクター関数のテスト
+    console.log('Testing selectors:');
+    console.log('$ function:', typeof $);
+    console.log('$ function:', typeof $);
+    console.log('Test $(".metricChk"):', $('.metricChk'));
 
     function toISOZFromLocalInput(v){
       if(!v) return null;
@@ -1214,21 +1219,44 @@
     }
 
     // ===== Startup =====
-    initTheme();
-    loadPrefs();
-    initDefaults();
-    savePrefs();
+    console.log('Initializing ESP32 Monitor...');
     
-    // 初回のみ: Latest + Series を読み込み（以後 Series は手動）
-    loadLatest();
-    loadSeries();
-    setupAuto();
+    // デバッグ用：セレクター関数のテスト
+    console.log('Testing selectors:');
+    console.log('$ function:', typeof $);
+    console.log('$ function:', typeof $);
+    console.log('Test $(".metricChk"):', $('.metricChk'));
+    
+    try {
+      initTheme();
+      console.log('Theme initialized');
+      
+      loadPrefs();
+      console.log('Preferences loaded');
+      
+      initDefaults();
+      console.log('Defaults initialized');
+      
+      savePrefs();
+      console.log('Preferences saved');
+      
+      // 初回のみ: Latest + Series を読み込み（以後 Series は手動）
+      loadLatest();
+      loadSeries();
+      setupAuto();
+      
+      console.log('Initial load completed');
+    } catch (error) {
+      console.error('Initialization error:', error);
+      showError(`初期化エラー: ${error.message}`);
+    }
 
     // Add loading animation
     document.body.style.opacity = '0';
     window.addEventListener('load', () => {
       document.body.style.transition = 'opacity 0.5s ease';
       document.body.style.opacity = '1';
+      console.log('Page fully loaded');
     });
   </script>
 </body>
