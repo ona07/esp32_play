@@ -32,7 +32,8 @@
 
     .controls { display:grid; grid-template-columns: 1fr; gap: 12px; }
     @media (min-width: 980px) {
-      .controls { grid-template-columns: 1.3fr .8fr 1fr 1fr 1fr 1fr 1.2fr; align-items: end; }
+      /* 6カラム（CORS Proxyブロック削除後） */
+      .controls { grid-template-columns: 1.3fr .8fr 1fr 1fr 1fr 1.2fr; align-items: end; }
     }
 
     label { display:block; font-size:12px; color: var(--muted); margin-bottom: 6px; }
@@ -88,7 +89,7 @@
         <div>
           <label>API Base URL</label>
           <input id="apiBase" type="text" placeholder="https://esp32-play.onrender.com" />
-          <div class="hint">例: https://esp32-play.onrender.com</div>
+          <div class="hint">例: https://esp32-play.onrender.com（サーバ側で CORS を許可してください）</div>
           <div class="env">Origin: <span id="originTxt"></span></div>
         </div>
         <div>
@@ -111,17 +112,6 @@
             <label><input type="checkbox" class="metricChk" value="humidity" checked> 湿度</label>
             <label><input type="checkbox" class="metricChk" value="distance_ultrasonic" checked> 超音波</label>
           </div>
-        </div>
-        <div>
-          <label>CORS Proxy（到達不可時の回避用）</label>
-          <select id="corsMode">
-            <option value="auto" selected>AUTO（直→proxy順に試行）</option>
-            <option value="off">OFF（直に叩く）</option>
-            <option value="corsproxy">corsproxy.io</option>
-            <option value="allorigins">allorigins.win</option>
-            <option value="isogit">isomorphic-git proxy</option>
-          </select>
-          <div class="hint">CORS エラー時のみ使用。サーバ側で CORS を有効化するのが本来の解。</div>
         </div>
         <div>
           <label>Options</label>
@@ -233,7 +223,6 @@
         auto: $('#autoRefresh').checked,
         interval: $('#autoInterval').value,
         mock: $('#mockMode') ? $('#mockMode').checked : false,
-        corsMode: $('#corsMode').value,
       };
       localStorage.setItem('esp32mon:prefs', JSON.stringify(prefs));
     }
@@ -249,7 +238,6 @@
         if(Array.isArray(p.metrics)) $$('.metricChk').forEach(c=> c.checked = p.metrics.includes(c.value));
         if(typeof p.auto==='boolean') $('#autoRefresh').checked = p.auto;
         if(p.interval) $('#autoInterval').value = p.interval;
-        if(p.corsMode) $('#corsMode').value = p.corsMode;
         if(typeof p.mock==='boolean' && $('#mockMode')) $('#mockMode').checked = p.mock;
       }catch(e){ console.warn('prefs parse fail', e); }
     }
@@ -261,25 +249,6 @@
       let b = $('#apiBase').value.trim() || 'https://esp32-play.onrender.com';
       if(b.endsWith('/')) b = b.slice(0,-1);
       return b;
-    }
-    function getProxyUrl(mode, url){
-      if(mode === 'corsproxy') return `https://corsproxy.io/?${encodeURIComponent(url)}`;
-      if(mode === 'allorigins') return `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-      if(mode === 'isogit') return `https://cors.isomorphic-git.org/${url}`;
-      return url; // off or unknown
-    }
-    function buildFetchList(url){
-      const mode = $('#corsMode').value;
-      if(mode === 'auto'){
-        return [
-          { label:'direct', url },
-          { label:'corsproxy', url: getProxyUrl('corsproxy', url) },
-          { label:'allorigins', url: getProxyUrl('allorigins', url) },
-          { label:'isogit', url: getProxyUrl('isogit', url) },
-        ];
-      }
-      if(mode === 'off') return [{ label:'direct', url }];
-      return [{ label: mode, url: getProxyUrl(mode, url) }];
     }
 
     // ===== Chart =====
@@ -389,23 +358,16 @@
       ];
     }
 
-    // ===== Data loading with AUTO CORS fallback =====
+    // ===== Fetch helpers (direct only) =====
     const controllers = { latest: null, series: null };
     async function fetchJSON(url, key){
-      const attempts = buildFetchList(url);
-      let lastErr = null;
-      for(const attempt of attempts){
-        try {
-          const controller = new AbortController();
-          if(key){ if(controllers[key]) controllers[key].abort(); controllers[key] = controller; }
-          const res = await fetch(attempt.url, { signal: controller.signal, cache:'no-store', mode:'cors' });
-          if(!res.ok) throw new Error(`${res.status} ${res.statusText} via ${attempt.label}`);
-          const json = await res.json();
-          setStatus(`${key||'fetch'} ok (via ${attempt.label})`);
-          return json;
-        } catch(e){ lastErr = e; console.warn('fetch attempt failed', attempt.label, e); }
-      }
-      throw lastErr || new Error('fetch failed');
+      const controller = new AbortController();
+      if(key){ if(controllers[key]) controllers[key].abort(); controllers[key] = controller; }
+      const res = await fetch(url, { signal: controller.signal, cache:'no-store', mode:'cors' });
+      if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      const json = await res.json();
+      setStatus(`${key||'fetch'} ok`);
+      return json;
     }
 
     async function loadLatest(){
@@ -426,8 +388,8 @@
         } else {
           setStatus('latest error');
           const isFile = location.protocol === 'file:' || location.origin === 'null';
-          const tip = isFile ? '\n※ 現在 file:// から開いているため CORS が厳しくなります。GitHub Pages (https://) で開いてください。' : '';
-          showError(`最新値の取得に失敗しました。原因例: device_id 不一致 / ネットワーク / URL / サーバ停止 / CORS。\n詳細: ${e instanceof DOMException ? e.name : e.message}${tip}`);
+          const tip = isFile ? '\n※ 現在 file:// から開いています。ブラウザの制約でクロスオリジンの取得が失敗する場合があります。GitHub Pages など HTTPS ホスティングから開いてください。' : '';
+          showError(`最新値の取得に失敗しました。原因例: device_id 不一致 / ネットワーク / URL / サーバ停止 / CORS（サーバ側で許可が必要）。\n詳細: ${e instanceof DOMException ? e.name : e.message}${tip}`);
         }
       }
     }
@@ -465,8 +427,8 @@
         } else {
           setStatus('series error');
           const isFile = location.protocol === 'file:' || location.origin === 'null';
-          const tip = isFile ? '\n※ 現在 file:// から開いているため CORS が厳しくなります。GitHub Pages (https://) で開いてください。' : '';
-          showError(`時系列データの取得に失敗しました。原因例: device_id 不一致 / ネットワーク / URL / サーバ停止 / CORS。\n詳細: ${e instanceof DOMException ? e.name : e.message}${tip}`);
+          const tip = isFile ? '\n※ 現在 file:// から開いています。ブラウザの制約でクロスオリジンの取得が失敗する場合があります。GitHub Pages など HTTPS ホスティングから開いてください。' : '';
+          showError(`時系列データの取得に失敗しました。原因例: device_id 不一致 / ネットワーク / URL / サーバ停止 / CORS（サーバ側で許可が必要）。\n詳細: ${e instanceof DOMException ? e.name : e.message}${tip}`);
         }
       }
     }
@@ -478,19 +440,16 @@
       if(!deviceId){ alert('Device ID を入力してください'); return; }
       const url = `${base}/latest?device_id=${encodeURIComponent(deviceId)}`;
       setStatus('ping…'); showError('');
-      const attempts = buildFetchList(url);
-      for(const attempt of attempts){
-        try{
-          const res = await fetch(attempt.url, { cache:'no-store', mode:'cors' });
-          if(!res.ok) throw new Error(`${res.status} ${res.statusText} via ${attempt.label}`);
-          const j = await res.json();
-          setStatus(`ping ok (via ${attempt.label})`);
-          alert('Ping OK\n' + JSON.stringify(j, null, 2));
-          return;
-        }catch(e){ console.warn('ping attempt failed', attempt.label, e); }
+      try{
+        const res = await fetch(url, { cache:'no-store', mode:'cors' });
+        if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+        const j = await res.json();
+        setStatus('ping ok');
+        alert('Ping OK\n' + JSON.stringify(j, null, 2));
+      }catch(e){
+        setStatus('ping error');
+        showError(`Ping失敗。CORS または到達性の問題の可能性。\n- サーバ側で CORS を有効化してください。\nOrigin: ${location.origin || 'null'}`);
       }
-      setStatus('ping error');
-      showError(`Ping失敗。CORSまたは到達性の問題の可能性。\n- サーバ側で CORS を有効化してください。\n- もしくは CORS Proxy を AUTO/ON にしてください。\nOrigin: ${location.origin || 'null'}`);
     }
 
     function selfTests(){
@@ -524,17 +483,6 @@
       window.loadSeries = async ()=>{ cntSeries++; };
       try { autoTick(); } finally { window.loadLatest = origLatest; window.loadSeries = origSeries; }
       assert('autoTick only latest', cntLatest===1 && cntSeries===0);
-
-      // Test 6: CORS fallback list builder
-      $('#corsMode').value = 'auto';
-      const L = buildFetchList('https://x.test/a');
-      assert('auto list 4 items', Array.isArray(L) && L.length===4 && L[0].label==='direct');
-      $('#corsMode').value = 'corsproxy';
-      const L2 = buildFetchList('https://x.test/a');
-      assert('mode corsproxy -> 1 item', L2.length===1 && L2[0].label==='corsproxy');
-      $('#corsMode').value = 'off';
-      const L3 = buildFetchList('https://x.test/a');
-      assert('mode off -> direct', L3.length===1 && L3[0].label==='direct');
 
       const pass = results.filter(r=>r.pass).length;
       const fail = results.length - pass;
@@ -609,9 +557,9 @@
       $('#endAt').value = fromDateToLocalInputValue(now);
       $('#startAt').value = fromDateToLocalInputValue(start);
       $('#originTxt').textContent = location.origin || 'null';
-      // file:// で開いたら CORS Proxy をAUTOのままにしつつ警告
+      // file:// で開いたら警告
       if(location.protocol === 'file:' || location.origin === 'null'){
-        showError('ローカル file:// から開いています。CORS のため API 取得が失敗する場合があります。GitHub Pages (https://) で開くか、上の CORS Proxy を AUTO/ON にしてください。');
+        showError('ローカル file:// から開いています。ブラウザ制約により API 取得が失敗する場合があります。GitHub Pages など HTTPS でホストして開いてください。');
       }
     }
 
