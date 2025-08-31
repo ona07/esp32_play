@@ -685,7 +685,7 @@
         deviceIdCustom: $('#deviceIdCustom').value.trim(),
         startAt: $('#startAt').value,
         endAt: $('#endAt').value,
-        metrics: $('.metricChk').filter(c=>c.checked).map(c=>c.value),
+        metrics: $$('.metricChk').filter(c=>c.checked).map(c=>c.value),
         auto: $('#autoRefresh').checked,
         interval: $('#autoInterval').value,
         mock: $('#mockMode') ? $('#mockMode').checked : false,
@@ -706,7 +706,7 @@
         if(p.deviceIdCustom) $('#deviceIdCustom').value = p.deviceIdCustom;
         if(p.startAt) $('#startAt').value = p.startAt;
         if(p.endAt) $('#endAt').value = p.endAt;
-        if(Array.isArray(p.metrics)) $('.metricChk').forEach(c=> c.checked = p.metrics.includes(c.value));
+        if(Array.isArray(p.metrics)) $$('.metricChk').forEach(c=> c.checked = p.metrics.includes(c.value));
         if(typeof p.auto==='boolean') $('#autoRefresh').checked = p.auto;
         if(p.interval) $('#autoInterval').value = p.interval;
         if(typeof p.mock==='boolean' && $('#mockMode')) $('#mockMode').checked = p.mock;
@@ -1031,7 +1031,7 @@
       if(!deviceId){ showError('Device ID を選択または入力してください'); return; }
       const startISO = toISOZFromLocalInput($('#startAt').value);
       const endISO = toISOZFromLocalInput($('#endAt').value);
-      const selected = $('.metricChk').filter(c=>c.checked).map(c=>c.value);
+      const selected = $$('.metricChk').filter(c=>c.checked).map(c=>c.value);
       if(!startISO || !endISO){ setStatus('start/end未設定', 'error'); return; }
       
       setStatus('loading series…', 'loading'); 
@@ -1162,7 +1162,7 @@
     $('#apiBaseSelect')?.addEventListener('change', updateApiBaseDisplay);
     $('#apiBaseCustom')?.addEventListener('input', savePrefs);
 
-    $('#config button.secondary[data-quick]').forEach(btn => btn.addEventListener('click', (e)=>{
+    $$('#config button.secondary[data-quick]').forEach(btn => btn.addEventListener('click', (e)=>{
       const now = new Date();
       const k = e.currentTarget.getAttribute('data-quick');
       const map = { '1h': 1, '6h': 6, '24h': 24 };
