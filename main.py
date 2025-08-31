@@ -13,7 +13,7 @@ app.add_middleware(
     allow_origins=["*"],            # GitHub Pages など複数 Origin から叩くなら *
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
-    # allow_credentials=False がデフォルト（今回はクッキー未使用なのでOK）
+    allow_credentials=False 
 )
 
 
