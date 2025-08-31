@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field            # ← これが必要！
 from typing import List, Optional, Literal
 import os, datetime as dt
 import psycopg2, psycopg2.extras
@@ -10,7 +11,7 @@ app = FastAPI()
 # --- (任意) フロントエンドから呼ぶための CORS ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],           # 必要に応じてドメインを限定してください
+    allow_origins=["*"],           # 必要に応じて限定してください
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
@@ -21,19 +22,23 @@ class Measure(BaseModel):
     ts: Optional[str] = None
     meta: dict = Field(default_factory=dict)
 
-def conn(): return psycopg2.connect(DATABASE_URL)
+def conn():
+    return psycopg2.connect(DATABASE_URL)
 
-def device_id_from_key(api_key:str):
+def device_id_from_key(api_key: str):
     with conn() as c, c.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
         cur.execute("select id from public.devices where api_key=%s", (api_key,))
-        r = cur.fetchone(); return r["id"] if r else None
+        r = cur.fetchone()
+        return r["id"] if r else None
 
-# ========== 既存: Ingest ==========
+# ========= 既存: Ingest =========
 @app.post("/ingest")
 def ingest(measures: List[Measure], x_api_key: str = Header(default="")):
-    if not x_api_key: raise HTTPException(401, "Missing X-API-Key")
+    if not x_api_key:
+        raise HTTPException(401, "Missing X-API-Key")
     did = device_id_from_key(x_api_key)
-    if not did: raise HTTPException(403, "Invalid API key")
+    if not did:
+        raise HTTPException(403, "Invalid API key")
 
     now = dt.datetime.utcnow().isoformat() + "Z"
     rows = []
@@ -42,6 +47,7 @@ def ingest(measures: List[Measure], x_api_key: str = Header(default="")):
         rows.append((did, ts, m.metric, m.value, psycopg2.extras.Json(dict(m.meta))))
     if not rows:
         return {"ok": True, "inserted": 0}
+
     with conn() as c, c.cursor() as cur:
         psycopg2.extras.execute_values(
             cur,
@@ -50,7 +56,7 @@ def ingest(measures: List[Measure], x_api_key: str = Header(default="")):
         )
     return {"ok": True, "inserted": len(rows)}
 
-# ========== 追加: 最新値取得 ==========
+# ========= 追加: 最新値取得 =========
 # 例:
 #   /latest?device_id=1&metric=temperature
 #   /latest?device_id=1   ← 全メトリクスの最新1件ずつ
@@ -63,7 +69,6 @@ def get_latest(
 ):
     with conn() as c, c.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
         if metric:
-            # 単一メトリクスの最新
             cur.execute(
                 """
                 SELECT device_id, (ts::timestamptz) AS ts, metric, value, meta
@@ -80,7 +85,6 @@ def get_latest(
             row["ts"] = row["ts"].isoformat()
             return {"ok": True, "data": row}
         else:
-            # 全メトリクスの最新1件ずつ
             cur.execute(
                 """
                 SELECT DISTINCT ON (metric)
@@ -96,7 +100,7 @@ def get_latest(
                 r["ts"] = r["ts"].isoformat()
             return {"ok": True, "data": rows}
 
-# ========== 追加: 期間の時系列取得 ==========
+# ========= 追加: 期間の時系列取得 =========
 # 例:
 #   /series?device_id=1&metric=temperature&start=2025-08-31T00:00:00Z&end=2025-08-31T12:00:00Z
 #   /series?device_id=1&start=2025-08-30T00:00:00+09:00&end=2025-08-31T00:00:00+09:00
@@ -116,13 +120,10 @@ def get_series(
         None, ge=1, le=200000, description="最大件数（任意）。未指定は制限なし"
     ),
 ):
-    # 時刻既定値の補完（UTC基準）
     if end is None:
         end = dt.datetime.now(dt.timezone.utc)
     if start is None:
         start = end - dt.timedelta(days=1)
-
-    # Naive datetime が来た場合は UTC とみなす
     if start.tzinfo is None:
         start = start.replace(tzinfo=dt.timezone.utc)
     if end.tzinfo is None:
