@@ -8,13 +8,14 @@ import psycopg2, psycopg2.extras
 DATABASE_URL = os.getenv("DATABASE_URL")
 app = FastAPI()
 
-# --- (任意) フロントエンドから呼ぶための CORS ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],           # 必要に応じて限定してください
-    allow_methods=["GET", "POST"],
+    allow_origins=["*"],            # GitHub Pages など複数 Origin から叩くなら *
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
+    # allow_credentials=False がデフォルト（今回はクッキー未使用なのでOK）
 )
+
 
 class Measure(BaseModel):
     metric: Literal["temperature","humidity","distance_ultrasonic"]

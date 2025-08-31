@@ -1,0 +1,545 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ESP32 Sensors Monitor</title>
+  <meta name="description" content="ESP32 temperature / humidity / ultrasonic monitor UI for GitHub Pages" />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <style>
+    :root {
+      --bg: #0b0c0f;
+      --panel: #12141a;
+      --muted: #9aa4b2;
+      --text: #e6edf3;
+      --accent: #4f8cff;
+      --ok: #2ecc71;
+      --warn: #f1c40f;
+      --danger: #e74c3c;
+      --card: #171a21;
+      --border: #232733;
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #fafafa; --panel: #ffffff; --card:#ffffff; --text: #0a0a0a; --muted:#57606a; --border:#e5e7eb; --accent:#1f6feb;
+      }
+    }
+    html, body { height: 100%; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, Segoe UI, Roboto, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif; }
+    .container { max-width: 1100px; margin: 24px auto 80px; padding: 0 16px; }
+    header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom: 16px; }
+    header h1 { font-size: 20px; margin: 0; letter-spacing: .2px; }
+    header .right { font-size: 12px; color: var(--muted); }
+
+    .panel { background: var(--panel); border:1px solid var(--border); border-radius: 14px; padding: 16px; box-shadow: 0 1px 0 rgba(0,0,0,.05), 0 8px 30px rgba(0,0,0,.15); }
+
+    .controls { display:grid; grid-template-columns: 1fr; gap: 12px; }
+    @media (min-width: 920px) {
+      .controls { grid-template-columns: 1.5fr 1fr 1fr 1fr 1fr 1fr; align-items: end; }
+    }
+
+    label { display:block; font-size:12px; color: var(--muted); margin-bottom: 6px; }
+    input[type="text"], input[type="number"], input[type="datetime-local"], select {
+      width:100%; background: var(--card); color: var(--text); border:1px solid var(--border); border-radius: 10px; padding:10px 12px; box-sizing: border-box;
+    }
+    .metric-checks { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+    .metric-checks label { color: var(--text); font-size:14px; margin:0; }
+
+    .btnrow { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+    button { background: var(--accent); color:#fff; border:none; border-radius: 10px; padding:10px 14px; cursor:pointer; font-weight:600; letter-spacing:.2px; }
+    button.secondary { background: transparent; color: var(--text); border:1px solid var(--border); }
+    button.ghost { background: transparent; color: var(--muted); border:1px dashed var(--border); }
+    button.warn { background: var(--warn); color:#111; }
+    button:disabled { opacity:.6; cursor: not-allowed; }
+
+    .grid { display:grid; grid-template-columns: 1fr; gap: 12px; margin-top: 16px; }
+    @media (min-width: 840px) { .grid { grid-template-columns: 1fr 1fr; } }
+
+    .cards { display:grid; grid-template-columns: repeat(1, minmax(0,1fr)); gap: 12px; }
+    @media (min-width: 620px) { .cards { grid-template-columns: repeat(3, minmax(0,1fr)); } }
+
+    .card { background: var(--card); border:1px solid var(--border); border-radius: 14px; padding: 14px; }
+    .metric { font-size:12px; color: var(--muted); text-transform: uppercase; letter-spacing:.5px; }
+    .value { font-size:28px; font-weight: 700; margin: 8px 0 6px; }
+    .timestamp { font-size:12px; color: var(--muted); }
+    .zone { font-size:12px; padding:3px 8px; border-radius:999px; border:1px solid var(--border); display:inline-block; }
+
+    canvas { width:100%; height:380px; }
+
+    table { width:100%; border-collapse: collapse; font-size:13px; }
+    th, td { padding:8px 10px; border-bottom:1px solid var(--border); text-align:left; }
+    th { color: var(--muted); font-weight:600; }
+
+    .footer { margin-top: 36px; font-size:12px; color: var(--muted); }
+    .status { font-size:12px; color: var(--muted); }
+
+    .hint { font-size:12px; color: var(--muted); margin-top:6px; }
+    .errorbox { margin-top:8px; border:1px dashed var(--border); background:rgba(231,76,60,.06); color:#ffb4a8; padding:10px; border-radius:10px; display:none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>ESP32 Sensors Monitor</h1>
+      <div class="right">
+        <span id="status" class="status">ready</span>
+      </div>
+    </header>
+
+    <section class="panel" id="config">
+      <div class="controls">
+        <div>
+          <label>API Base URL</label>
+          <input id="apiBase" type="text" placeholder="https://esp32-play.onrender.com" />
+          <div class="hint">例: https://esp32-play.onrender.com</div>
+        </div>
+        <div>
+          <label>Device ID</label>
+          <input id="deviceId" type="number" min="1" step="1" placeholder="1" />
+        </div>
+        <div>
+          <label>Start (local)</label>
+          <input id="startAt" type="datetime-local" />
+        </div>
+        <div>
+          <label>End (local)</label>
+          <input id="endAt" type="datetime-local" />
+        </div>
+        <div>
+          <label>Metrics</label>
+          <div class="metric-checks">
+            <label><input type="checkbox" class="metricChk" value="temperature" checked> 温度</label>
+            <label><input type="checkbox" class="metricChk" value="humidity" checked> 湿度</label>
+            <label><input type="checkbox" class="metricChk" value="distance_ultrasonic" checked> 超音波</label>
+          </div>
+        </div>
+        <div>
+          <label>Options</label>
+          <div class="metric-checks">
+            <label><input type="checkbox" id="mockMode"> モックデータを使用（API到達不可時）</label>
+          </div>
+        </div>
+      </div>
+      <div class="btnrow" style="margin-top:12px;">
+        <button id="loadBtn">読み込む</button>
+        <button class="secondary" data-quick="1h">直近1時間</button>
+        <button class="secondary" data-quick="6h">直近6時間</button>
+        <button class="secondary" data-quick="24h">直近24時間</button>
+        <button id="latestBtn" class="ghost">最新を更新</button>
+        <button id="dlCsvBtn" class="ghost">CSVダウンロード</button>
+        <button id="pingBtn" class="ghost">API疎通 (Ping)</button>
+        <button id="selfTestBtn" class="ghost">Self‑Test</button>
+        <label style="margin-left:auto; display:flex; align-items:center; gap:8px;">
+          <input id="autoRefresh" type="checkbox"> 自動更新（Latestのみ）
+        </label>
+        <select id="autoInterval" style="width:160px;">
+          <option value="15">15秒</option>
+          <option value="30" selected>30秒</option>
+          <option value="60">60秒</option>
+        </select>
+      </div>
+      <div id="errorBox" class="errorbox"></div>
+    </section>
+
+    <div class="grid">
+      <section class="panel">
+        <h3 style="margin:0 0 10px; font-size:16px;">Latest</h3>
+        <div class="cards" id="latestCards"><!-- cards injected here --></div>
+      </section>
+      <section class="panel">
+        <h3 style="margin:0 0 10px; font-size:16px;">Chart</h3>
+        <canvas id="chart"></canvas>
+      </section>
+    </div>
+
+    <section class="panel" style="margin-top:12px;">
+      <h3 style="margin:0 0 10px; font-size:16px;">Series Table</h3>
+      <div style="overflow:auto;">
+        <table id="seriesTable">
+          <thead>
+            <tr><th>ts</th><th>metric</th><th>value</th><th>meta</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="footer">表示時刻はブラウザのローカルタイムゾーンで表示されます（JST推奨）。</div>
+  </div>
+
+  <!-- Chart.js + date adapter -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
+
+  <script>
+    // ===== Utilities =====
+    const $ = (sel) => document.querySelector(sel);
+    const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
+    function toISOZFromLocalInput(v){
+      if(!v) return null; // expects 'YYYY-MM-DDTHH:mm'
+      const d = new Date(v); // local time
+      return d.toISOString(); // UTC Z
+    }
+    function fromDateToLocalInputValue(d){
+      const pad = (n) => String(n).padStart(2,'0');
+      const yyyy = d.getFullYear();
+      const mm = pad(d.getMonth()+1);
+      const dd = pad(d.getDate());
+      const hh = pad(d.getHours());
+      const ii = pad(d.getMinutes());
+      return `${yyyy}-${mm}-${dd}T${hh}:${ii}`;
+    }
+
+    function fmtMetric(m){
+      if(m==='temperature') return '温度';
+      if(m==='humidity') return '湿度';
+      if(m==='distance_ultrasonic') return '超音波距離';
+      return m;
+    }
+    function fmtValue(metric, v){
+      if(v==null || Number.isNaN(v)) return '-';
+      if(metric==='temperature') return `${v.toFixed(1)} °C`;
+      if(metric==='humidity') return `${v.toFixed(1)} %`;
+      if(metric==='distance_ultrasonic') return `${v.toFixed(1)} cm`;
+      return String(v);
+    }
+
+    function savePrefs(){
+      const prefs = {
+        apiBase: $('#apiBase').value.trim(),
+        deviceId: $('#deviceId').value.trim(),
+        startAt: $('#startAt').value,
+        endAt: $('#endAt').value,
+        metrics: $$('.metricChk').filter(c=>c.checked).map(c=>c.value),
+        auto: $('#autoRefresh').checked,
+        interval: $('#autoInterval').value,
+        mock: $('#mockMode').checked,
+      };
+      localStorage.setItem('esp32mon:prefs', JSON.stringify(prefs));
+    }
+    function loadPrefs(){
+      const raw = localStorage.getItem('esp32mon:prefs');
+      if(!raw) return;
+      try{
+        const p = JSON.parse(raw);
+        if(p.apiBase) $('#apiBase').value = p.apiBase;
+        if(p.deviceId) $('#deviceId').value = p.deviceId;
+        if(p.startAt) $('#startAt').value = p.startAt;
+        if(p.endAt) $('#endAt').value = p.endAt;
+        if(Array.isArray(p.metrics)) $$('.metricChk').forEach(c=> c.checked = p.metrics.includes(c.value));
+        if(typeof p.auto==='boolean') $('#autoRefresh').checked = p.auto;
+        if(p.interval) $('#autoInterval').value = p.interval;
+        if(typeof p.mock==='boolean') $('#mockMode').checked = p.mock;
+      }catch(e){ console.warn('prefs parse fail', e); }
+    }
+
+    function setStatus(msg){ $('#status').textContent = msg; }
+    function showError(msg){ const box=$('#errorBox'); box.textContent=msg; box.style.display = msg? 'block':'none'; }
+
+    function buildBase(){
+      let b = $('#apiBase').value.trim() || 'https://esp32-play.onrender.com';
+      if(b.endsWith('/')) b = b.slice(0,-1);
+      return b;
+    }
+
+    // ===== Chart =====
+    const ctx = document.getElementById('chart').getContext('2d');
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: { datasets: [] },
+      options: {
+        responsive: true,
+        interaction: { mode: 'nearest', intersect: false },
+        parsing: false,
+        scales: {
+          x: { type: 'time', time: { tooltipFormat: 'yyyy-LL-dd HH:mm' } },
+          y: { title: { display: true, text: 'Temp/Humidity' } },
+          y2: { position:'right', grid: { drawOnChartArea:false }, title:{ display:true, text:'Distance (cm)' } }
+        },
+        plugins: { legend: { display: true } }
+      }
+    });
+
+    function setDatasets(series, selected){
+      const groups = { temperature: [], humidity: [], distance_ultrasonic: [] };
+      for(const r of series){
+        if(!selected.includes(r.metric)) continue;
+        const x = new Date(r.ts).getTime();
+        const y = Number(r.value);
+        if(Number.isFinite(y)) groups[r.metric].push({ x, y });
+      }
+      const datasets = [];
+      if(selected.includes('temperature')) datasets.push({ label:'温度 (°C)', data: groups.temperature, yAxisID:'y' });
+      if(selected.includes('humidity')) datasets.push({ label:'湿度 (%)', data: groups.humidity, yAxisID:'y' });
+      if(selected.includes('distance_ultrasonic')) datasets.push({ label:'距離 (cm)', data: groups.distance_ultrasonic, yAxisID:'y2' });
+      chart.data.datasets = datasets;
+      chart.update();
+    }
+
+    function renderTable(series){
+      const tbody = $('#seriesTable tbody');
+      tbody.innerHTML = '';
+      const rows = series.map(r => {
+        const tr = document.createElement('tr');
+        const metaTxt = r.meta ? JSON.stringify(r.meta) : '';
+        tr.innerHTML = `<td>${new Date(r.ts).toLocaleString()}</td><td>${r.metric}</td><td>${r.value}</td><td>${metaTxt}</td>`;
+        return tr;
+      });
+      rows.forEach(tr => tbody.appendChild(tr));
+    }
+
+    function renderLatest(cards){
+      const wrap = $('#latestCards');
+      wrap.innerHTML = '';
+      for(const r of cards){
+        const meta = r.meta || {};
+        const zone = meta.zone ? String(meta.zone) : '';
+        const zonePill = zone ? `<span class="zone">${zone}</span>` : '';
+        const div = document.createElement('div');
+        div.className = 'card';
+        div.innerHTML = `
+          <div class="metric">${fmtMetric(r.metric)}</div>
+          <div class="value">${fmtValue(r.metric, Number(r.value))}</div>
+          <div class="timestamp">${new Date(r.ts).toLocaleString()} ${zonePill}</div>
+        `;
+        wrap.appendChild(div);
+      }
+    }
+
+    function makeCSV(series){
+      const header = ['ts','metric','value','meta'];
+      const lines = [header.join(',')];
+      for(const r of series){
+        const meta = r.meta ? JSON.stringify(r.meta).replace(/"/g,'""') : '';
+        const row = [r.ts, r.metric, r.value, `"${meta}"`];
+        lines.push(row.join(','));
+      }
+      return lines.join('\n');
+    }
+
+    function download(filename, text){
+      const blob = new Blob([text], {type:'text/csv'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // ===== Mock data =====
+    function generateMockSeries(start, end){
+      const out = [];
+      const ms = 60*1000; // 1min step
+      for(let t = start.getTime(); t < end.getTime(); t += 5*ms){
+        const d = new Date(t);
+        const base = 20 + 5*Math.sin(t/3.6e6);
+        out.push({ ts: d.toISOString(), metric: 'temperature', value: +(base + (Math.random()-0.5)).toFixed(1), meta: { unit:'C', mock:true } });
+        out.push({ ts: d.toISOString(), metric: 'humidity', value: +(55 + 10*Math.cos(t/3.6e6) + (Math.random()-0.5)).toFixed(1), meta: { unit:'%', mock:true } });
+        out.push({ ts: d.toISOString(), metric: 'distance_ultrasonic', value: +(50 + 20*Math.sin(t/1.8e6) + (Math.random()-0.5)).toFixed(1), meta: { unit:'cm', mock:true } });
+      }
+      return out;
+    }
+    function generateMockLatest(){
+      const now = new Date();
+      return [
+        { device_id: 1, ts: now.toISOString(), metric: 'temperature', value: 24.2, meta:{ unit:'C', mock:true } },
+        { device_id: 1, ts: now.toISOString(), metric: 'humidity', value: 59.1, meta:{ unit:'%', mock:true } },
+        { device_id: 1, ts: now.toISOString(), metric: 'distance_ultrasonic', value: 32.5, meta:{ unit:'cm', zone:'OVER_EQ_20cm', mock:true } },
+      ];
+    }
+
+    // ===== Data loading with per-endpoint AbortControllers =====
+    const controllers = { latest: null, series: null };
+    async function fetchJSON(url, key){
+      try {
+        const controller = new AbortController();
+        if(key){
+          if(controllers[key]) controllers[key].abort();
+          controllers[key] = controller;
+        }
+        const res = await fetch(url, { signal: controller.signal, cache:'no-store', mode:'cors' });
+        if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+        return await res.json();
+      } catch(e){
+        throw e;
+      }
+    }
+
+    async function loadLatest(){
+      const base = buildBase();
+      const deviceId = ($('#deviceId').value || '1').trim();
+      setStatus('loading latest…'); showError('');
+      try{
+        const j = await fetchJSON(`${base}/latest?device_id=${encodeURIComponent(deviceId)}`, 'latest');
+        renderLatest(j.data || []);
+        setStatus('latest ok');
+      }catch(e){
+        console.error('latest error', e);
+        if($('#mockMode').checked){
+          renderLatest(generateMockLatest());
+          setStatus('latest mock');
+          showError(`最新値の取得に失敗: ${e.message}. モックデータを表示中。`);
+        } else {
+          setStatus('latest error');
+          showError(`最新値の取得に失敗しました。原因例: ネットワーク/URL/サーバ停止/CORS。\n詳細: ${e instanceof DOMException ? e.name : e.message}`);
+        }
+      }
+    }
+
+    async function loadSeries(){
+      const base = buildBase();
+      const deviceId = ($('#deviceId').value || '1').trim();
+      const startISO = toISOZFromLocalInput($('#startAt').value);
+      const endISO = toISOZFromLocalInput($('#endAt').value);
+      const selected = $$('.metricChk').filter(c=>c.checked).map(c=>c.value);
+      if(!startISO || !endISO){ setStatus('start/end未設定'); return; }
+      setStatus('loading series…'); showError('');
+      const url = `${base}/series?device_id=${encodeURIComponent(deviceId)}&start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}`;
+      try{
+        const j = await fetchJSON(url, 'series');
+        const all = Array.isArray(j.data) ? j.data : [];
+        const filtered = all.filter(r => selected.includes(r.metric));
+        setDatasets(filtered, selected);
+        renderTable(filtered);
+        window.__lastSeries = filtered;
+        setStatus(`series ok (${filtered.length} points)`);
+      }catch(e){
+        console.error('series error', e);
+        if($('#mockMode').checked){
+          const start = new Date($('#startAt').value);
+          const end = new Date($('#endAt').value);
+          const mock = generateMockSeries(start, end);
+          const filtered = mock.filter(r => selected.includes(r.metric));
+          setDatasets(filtered, selected);
+          renderTable(filtered);
+          window.__lastSeries = filtered;
+          setStatus(`series mock (${filtered.length} points)`);
+          showError(`時系列の取得に失敗: ${e.message}. モックデータを表示中。`);
+        } else {
+          setStatus('series error');
+          showError(`時系列データの取得に失敗しました。原因例: ネットワーク/URL/サーバ停止/CORS。\n詳細: ${e instanceof DOMException ? e.name : e.message}`);
+        }
+      }
+    }
+
+    // ===== Ping & Self-Test =====
+    async function pingApi(){
+      const base = buildBase();
+      const deviceId = ($('#deviceId').value || '1').trim();
+      const url = `${base}/latest?device_id=${encodeURIComponent(deviceId)}`;
+      setStatus('ping…'); showError('');
+      try{
+        const res = await fetch(url, { cache:'no-store', mode:'cors' });
+        if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+        const j = await res.json();
+        setStatus('ping ok');
+        alert('Ping OK\n' + JSON.stringify(j, null, 2));
+      }catch(e){
+        setStatus('ping error');
+        showError(`Ping失敗: ${e.message}.\nURL: ${url}\nヒント: APIのURLが正しいか / CORS が有効か / ネットワーク到達性を確認してください。`);
+      }
+    }
+
+    function selfTests(){
+      const results = [];
+      const assert = (name, cond) => results.push({ name, pass: !!cond });
+
+      // Test 1: ISO convert round‑trip (minute resolution)
+      const now = new Date(); now.setSeconds(0,0);
+      const loc = fromDateToLocalInputValue(now);
+      const iso = toISOZFromLocalInput(loc);
+      assert('ISO conversion returns string', typeof iso === 'string' && iso.endsWith('Z'));
+
+      // Test 2: buildBase trims slash
+      $('#apiBase').value = 'https://esp32-play.onrender.com/';
+      assert('buildBase trims trailing slash', buildBase() === 'https://esp32-play.onrender.com');
+
+      // Test 3: setDatasets accepts empty
+      try { setDatasets([], ['temperature']); assert('setDatasets empty ok', true); } catch(e) { assert('setDatasets empty ok', false); }
+
+      // Test 4: mock generators
+      const start = new Date(Date.now()-3600*1000), end = new Date();
+      const mockS = generateMockSeries(start, end);
+      assert('mock series non-empty', Array.isArray(mockS) && mockS.length>0);
+      const mockL = generateMockLatest();
+      assert('mock latest length=3', Array.isArray(mockL) && mockL.length===3);
+
+      // Test 5: autoTick should call ONLY latest
+      const origLatest = window.loadLatest; const origSeries = window.loadSeries;
+      let cntLatest = 0, cntSeries = 0;
+      window.loadLatest = async ()=>{ cntLatest++; };
+      window.loadSeries = async ()=>{ cntSeries++; };
+      try { autoTick(); } finally { window.loadLatest = origLatest; window.loadSeries = origSeries; }
+      assert('autoTick only latest', cntLatest===1 && cntSeries===0);
+
+      const pass = results.filter(r=>r.pass).length;
+      const fail = results.length - pass;
+      console.table(results);
+      alert(`Self-Test: ${pass} passed, ${fail} failed`);
+    }
+
+    // ===== Auto refresh (Latest only) =====
+    let autoTimer = null;
+    function autoTick(){ loadLatest(); } // Seriesは手動 or 初回のみ
+    function setupAuto(){
+      if(autoTimer){ clearInterval(autoTimer); autoTimer = null; }
+      if($('#autoRefresh').checked){
+        const sec = parseInt($('#autoInterval').value,10) || 30;
+        autoTimer = setInterval(()=>{ autoTick(); }, sec*1000);
+      }
+      savePrefs();
+    }
+
+    // ===== Events =====
+    $('#loadBtn').addEventListener('click', () => { savePrefs(); loadLatest(); loadSeries(); });
+    $('#latestBtn').addEventListener('click', () => { savePrefs(); loadLatest(); });
+    $('#pingBtn').addEventListener('click', () => { savePrefs(); pingApi(); });
+    $('#selfTestBtn').addEventListener('click', selfTests);
+
+    $$('#config input, #config select').forEach(el => el.addEventListener('change', savePrefs));
+
+    $$('#config button.secondary[data-quick]').forEach(btn => btn.addEventListener('click', (e)=>{
+      const now = new Date();
+      const k = e.currentTarget.getAttribute('data-quick');
+      const map = { '1h': 1, '6h': 6, '24h': 24 };
+      const hours = map[k] || 6;
+      const start = new Date(now.getTime() - hours*3600*1000);
+      $('#endAt').value = fromDateToLocalInputValue(now);
+      $('#startAt').value = fromDateToLocalInputValue(start);
+      savePrefs();
+      loadSeries();
+    }));
+
+    $('#dlCsvBtn').addEventListener('click', ()=>{
+      const rows = window.__lastSeries || [];
+      if(!rows.length){ alert('データがありません'); return; }
+      const csv = makeCSV(rows);
+      const deviceId = ($('#deviceId').value || '1').trim();
+      download(`series_device${deviceId}.csv`, csv);
+    });
+
+    $('#autoRefresh').addEventListener('change', setupAuto);
+    $('#autoInterval').addEventListener('change', setupAuto);
+
+    // ===== Init =====
+    function initDefaults(){
+      if(!$('#apiBase').value) $('#apiBase').value = 'https://esp32-play.onrender.com';
+      if(!$('#deviceId').value) $('#deviceId').value = '1';
+      const now = new Date();
+      const start = new Date(now.getTime() - 6*3600*1000);
+      $('#endAt').value = fromDateToLocalInputValue(now);
+      $('#startAt').value = fromDateToLocalInputValue(start);
+    }
+
+    loadPrefs();
+    initDefaults();
+    savePrefs();
+    // Initial load: Latest + Series（Seriesはこの初回のみ自動）
+    loadLatest();
+    loadSeries();
+    setupAuto();
+  </script>
+</body>
+</html>
