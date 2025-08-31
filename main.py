@@ -7,8 +7,9 @@ import psycopg2, psycopg2.extras
 
 # ===================== App & CORS =====================
 DATABASE_URL = os.getenv("DATABASE_URL")
-app = FastAPI()
+DEBUG = os.getenv("DEBUG", "0") == "1"   # ← 切り分け時に 1 にしてください（本番は 0 推奨）
 
+app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],                 # 必要なら ["https://ona07.github.io"] などに絞ってOK
@@ -63,16 +64,15 @@ def detect_ts_conf() -> Tuple[str, str, bool]:
         """)
         row = cur.fetchone()
         dtype = row[0] if row else None
-        # PostgreSQL では 'timestamp with time zone' / 'timestamptz' など
+        # PostgreSQL では 'timestamp with time zone' 等
         if dtype and ("time" in dtype and "zone" in dtype):
             TS_EXPR = "ts"
             TS_GUARD = ""
             TS_IS_TEXT = False
         else:
-            # text / varchar などを想定
+            # text / varchar など
             TS_EXPR = "(ts::timestamptz)"
-            # 不正な ts を除外（空/nullも自動で除外される）
-            TS_GUARD = " AND (ts::text) ~* %s"
+            TS_GUARD = "AND (ts::text) ~* %s"  # 不正 ts を除外
             TS_IS_TEXT = True
     print(f"[BOOT] ts column detected: dtype={dtype}, TS_EXPR={TS_EXPR}, TS_IS_TEXT={TS_IS_TEXT}")
     return TS_EXPR, TS_GUARD, TS_IS_TEXT
@@ -82,16 +82,19 @@ def _on_startup():
     try:
         detect_ts_conf()
     except Exception as e:
-        # 検出に失敗してもアプリは起動、後続で 503 に落とす
         print("[WARN] ts detection failed:", repr(e))
         traceback.print_exc()
 
 def http503(e: Exception, where: str):
+    # ログに詳細
     print(f"[SERVE][ERROR][{where}] {repr(e)}")
     traceback.print_exc()
+    # デバッグ時のみ本文にエラー詳細を含める（本番では固定文言）
+    if DEBUG:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, f"{where}: {type(e).__name__}: {e}")
     raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "temporarily unavailable")
 
-# ===================== Health =====================
+# ===================== Health / Schema =====================
 @app.get("/healthz")
 def healthz():
     try:
@@ -103,6 +106,37 @@ def healthz():
         print("[HEALTHZ][ERROR]", repr(e))
         traceback.print_exc()
         return {"ok": False, "error": str(e)}
+
+@app.get("/schemaz")
+def schemaz(device_id: Optional[int] = None):
+    """
+    テーブル存在や ts 型、（任意）デバイス別の件数などを軽く確認。
+    """
+    out = {}
+    try:
+        with conn() as c, c.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("select to_regclass('public.devices') as devices, to_regclass('public.measurements') as measurements;")
+            out["tables"] = cur.fetchone()
+            cur.execute("""
+                select data_type
+                from information_schema.columns
+                where table_schema='public' and table_name='measurements' and column_name='ts' limit 1
+            """)
+            row = cur.fetchone()
+            out["ts_type"] = row["data_type"] if row else None
+            out["ts_expr"] = TS_EXPR
+            out["ts_is_text"] = TS_IS_TEXT
+            if device_id is not None:
+                cur.execute("""
+                    select metric, count(*) cnt
+                    from public.measurements
+                    where device_id=%s
+                    group by 1 order by 1
+                """, (device_id,))
+                out["counts"] = cur.fetchall()
+        return {"ok": True, **out}
+    except Exception as e:
+        http503(e, "schemaz")
 
 # ===================== Ingest =====================
 @app.post("/ingest")
@@ -147,12 +181,13 @@ def get_latest(
 ):
     try:
         with conn() as c, c.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            guard = f" {TS_GUARD}" if TS_IS_TEXT else ""
             if metric:
                 sql = f"""
                     SELECT device_id, {TS_EXPR} AS ts, metric, value, meta
                     FROM public.measurements
                     WHERE device_id = %s AND metric = %s
-                    {" " + TS_GUARD if TS_IS_TEXT else ""}
+                    {guard}
                     ORDER BY {TS_EXPR} DESC
                     LIMIT 1
                 """
@@ -162,7 +197,6 @@ def get_latest(
                 row = cur.fetchone()
                 if not row:
                     return {"ok": True, "data": None}
-                # ts は datetime/tz に揃っているはず
                 if isinstance(row["ts"], dt.datetime):
                     row["ts"] = row["ts"].isoformat()
                 return {"ok": True, "data": row}
@@ -172,7 +206,7 @@ def get_latest(
                            device_id, {TS_EXPR} AS ts, metric, value, meta
                     FROM public.measurements
                     WHERE device_id = %s
-                    {" " + TS_GUARD if TS_IS_TEXT else ""}
+                    {guard}
                     ORDER BY metric, {TS_EXPR} DESC
                 """
                 params = [device_id]
@@ -218,20 +252,20 @@ def get_series(
         if end.tzinfo is None:
             end = end.replace(tzinfo=dt.timezone.utc)
 
-        params: List = [device_id, start, end]
+        guard = f" {TS_GUARD}" if TS_IS_TEXT else ""
         if metric:
+            # device_id → (ガード) → 範囲 → metric の順でパラメータを積む
             sql = f"""
                 SELECT device_id, {TS_EXPR} AS ts, metric, value, meta
                 FROM public.measurements
                 WHERE device_id = %s
-                  {" " + TS_GUARD if TS_IS_TEXT else ""}
+                  {guard}
                   AND {TS_EXPR} >= %s
                   AND {TS_EXPR} <  %s
                   AND metric = %s
                 ORDER BY {TS_EXPR} ASC
             """
-            # TS_GUARD は device_id の後に入るので並びに注意
-            params = [device_id]
+            params: List = [device_id]
             if TS_IS_TEXT: params.append(REGEX_ISO)
             params.extend([start, end, metric])
         else:
@@ -239,7 +273,7 @@ def get_series(
                 SELECT device_id, {TS_EXPR} AS ts, metric, value, meta
                 FROM public.measurements
                 WHERE device_id = %s
-                  {" " + TS_GUARD if TS_IS_TEXT else ""}
+                  {guard}
                   AND {TS_EXPR} >= %s
                   AND {TS_EXPR} <  %s
                 ORDER BY {TS_EXPR} ASC, metric ASC
