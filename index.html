@@ -34,8 +34,8 @@
     .panel { background: var(--panel); border:1px solid var(--border); border-radius: 14px; padding: 16px; box-shadow: 0 1px 0 rgba(0,0,0,.05), 0 8px 30px rgba(0,0,0,.15); }
 
     .controls { display:grid; grid-template-columns: 1fr; gap: 12px; }
-    @media (min-width: 920px) {
-      .controls { grid-template-columns: 1.5fr 1fr 1fr 1fr 1fr 1fr; align-items: end; }
+    @media (min-width: 980px) {
+      .controls { grid-template-columns: 1.3fr .8fr 1fr 1fr 1fr 1fr 1.2fr; align-items: end; }
     }
 
     label { display:block; font-size:12px; color: var(--muted); margin-bottom: 6px; }
@@ -74,7 +74,8 @@
     .status { font-size:12px; color: var(--muted); }
 
     .hint { font-size:12px; color: var(--muted); margin-top:6px; }
-    .errorbox { margin-top:8px; border:1px dashed var(--border); background:rgba(231,76,60,.06); color:#ffb4a8; padding:10px; border-radius:10px; display:none; }
+    .errorbox { margin-top:8px; border:1px dashed var(--border); background:rgba(231,76,60,.06); color:#ffb4a8; padding:10px; border-radius:10px; display:none; white-space:pre-wrap; }
+    .env { font-size:11px; color:var(--muted); margin-top:4px; }
   </style>
 </head>
 <body>
@@ -92,6 +93,7 @@
           <label>API Base URL</label>
           <input id="apiBase" type="text" placeholder="https://esp32-play.onrender.com" />
           <div class="hint">例: https://esp32-play.onrender.com</div>
+          <div class="env">Origin: <span id="originTxt"></span></div>
         </div>
         <div>
           <label>Device ID</label>
@@ -114,10 +116,14 @@
           </div>
         </div>
         <div>
-          <label>Options</label>
-          <div class="metric-checks">
-            <label><input type="checkbox" id="mockMode"> モックデータを使用（API到達不可時）</label>
-          </div>
+          <label>CORS Proxy（到達不可時の回避用）</label>
+          <select id="corsMode">
+            <option value="off" selected>OFF（推奨）</option>
+            <option value="corsproxy">corsproxy.io</option>
+            <option value="allorigins">allorigins.win</option>
+            <option value="isogit">isomorphic‑git proxy</option>
+          </select>
+          <div class="hint">CORS エラー時のみ使用。バックエンド側で CORS を有効化するのが本来の解。</div>
         </div>
       </div>
       <div class="btnrow" style="margin-top:12px;">
@@ -214,7 +220,8 @@
         metrics: $$('.metricChk').filter(c=>c.checked).map(c=>c.value),
         auto: $('#autoRefresh').checked,
         interval: $('#autoInterval').value,
-        mock: $('#mockMode').checked,
+        mock: $('#mockMode') ? $('#mockMode').checked : false,
+        corsMode: $('#corsMode').value,
       };
       localStorage.setItem('esp32mon:prefs', JSON.stringify(prefs));
     }
@@ -230,7 +237,7 @@
         if(Array.isArray(p.metrics)) $$('.metricChk').forEach(c=> c.checked = p.metrics.includes(c.value));
         if(typeof p.auto==='boolean') $('#autoRefresh').checked = p.auto;
         if(p.interval) $('#autoInterval').value = p.interval;
-        if(typeof p.mock==='boolean') $('#mockMode').checked = p.mock;
+        if(p.corsMode) $('#corsMode').value = p.corsMode;
       }catch(e){ console.warn('prefs parse fail', e); }
     }
 
@@ -241,6 +248,13 @@
       let b = $('#apiBase').value.trim() || 'https://esp32-play.onrender.com';
       if(b.endsWith('/')) b = b.slice(0,-1);
       return b;
+    }
+    function applyCorsProxy(url){
+      const mode = $('#corsMode').value;
+      if(mode === 'corsproxy') return `https://corsproxy.io/?${encodeURIComponent(url)}`;
+      if(mode === 'allorigins') return `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+      if(mode === 'isogit') return `https://cors.isomorphic-git.org/${url}`;
+      return url; // off
     }
 
     // ===== Chart =====
@@ -328,7 +342,7 @@
       URL.revokeObjectURL(url);
     }
 
-    // ===== Mock data =====
+    // ===== Mock data (optional) =====
     function generateMockSeries(start, end){
       const out = [];
       const ms = 60*1000; // 1min step
@@ -350,21 +364,17 @@
       ];
     }
 
-    // ===== Data loading with per-endpoint AbortControllers =====
+    // ===== Data loading (per-endpoint AbortControllers) =====
     const controllers = { latest: null, series: null };
     async function fetchJSON(url, key){
       try {
         const controller = new AbortController();
-        if(key){
-          if(controllers[key]) controllers[key].abort();
-          controllers[key] = controller;
-        }
-        const res = await fetch(url, { signal: controller.signal, cache:'no-store', mode:'cors' });
+        if(key){ if(controllers[key]) controllers[key].abort(); controllers[key] = controller; }
+        const finalUrl = applyCorsProxy(url);
+        const res = await fetch(finalUrl, { signal: controller.signal, cache:'no-store', mode:'cors' });
         if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         return await res.json();
-      } catch(e){
-        throw e;
-      }
+      } catch(e){ throw e; }
     }
 
     async function loadLatest(){
@@ -377,13 +387,15 @@
         setStatus('latest ok');
       }catch(e){
         console.error('latest error', e);
-        if($('#mockMode').checked){
+        if($('#mockMode') && $('#mockMode').checked){
           renderLatest(generateMockLatest());
           setStatus('latest mock');
           showError(`最新値の取得に失敗: ${e.message}. モックデータを表示中。`);
         } else {
           setStatus('latest error');
-          showError(`最新値の取得に失敗しました。原因例: ネットワーク/URL/サーバ停止/CORS。\n詳細: ${e instanceof DOMException ? e.name : e.message}`);
+          const isFile = location.protocol === 'file:' || location.origin === 'null';
+          const tip = isFile ? '\n※ 現在 file:// から開いているため CORS が厳しくなります。GitHub Pages など https:// 配下から開いてください。' : '';
+          showError(`最新値の取得に失敗しました。原因例: ネットワーク/URL/サーバ停止/CORS。\n詳細: ${e instanceof DOMException ? e.name : e.message}${tip}`);
         }
       }
     }
@@ -407,7 +419,7 @@
         setStatus(`series ok (${filtered.length} points)`);
       }catch(e){
         console.error('series error', e);
-        if($('#mockMode').checked){
+        if($('#mockMode') && $('#mockMode').checked){
           const start = new Date($('#startAt').value);
           const end = new Date($('#endAt').value);
           const mock = generateMockSeries(start, end);
@@ -419,7 +431,9 @@
           showError(`時系列の取得に失敗: ${e.message}. モックデータを表示中。`);
         } else {
           setStatus('series error');
-          showError(`時系列データの取得に失敗しました。原因例: ネットワーク/URL/サーバ停止/CORS。\n詳細: ${e instanceof DOMException ? e.name : e.message}`);
+          const isFile = location.protocol === 'file:' || location.origin === 'null';
+          const tip = isFile ? '\n※ 現在 file:// から開いているため CORS が厳しくなります。GitHub Pages など https:// 配下から開いてください。' : '';
+          showError(`時系列データの取得に失敗しました。原因例: ネットワーク/URL/サーバ停止/CORS。\n詳細: ${e instanceof DOMException ? e.name : e.message}${tip}`);
         }
       }
     }
@@ -429,16 +443,17 @@
       const base = buildBase();
       const deviceId = ($('#deviceId').value || '1').trim();
       const url = `${base}/latest?device_id=${encodeURIComponent(deviceId)}`;
+      const finalUrl = applyCorsProxy(url);
       setStatus('ping…'); showError('');
       try{
-        const res = await fetch(url, { cache:'no-store', mode:'cors' });
+        const res = await fetch(finalUrl, { cache:'no-store', mode:'cors' });
         if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         const j = await res.json();
         setStatus('ping ok');
         alert('Ping OK\n' + JSON.stringify(j, null, 2));
       }catch(e){
         setStatus('ping error');
-        showError(`Ping失敗: ${e.message}.\nURL: ${url}\nヒント: APIのURLが正しいか / CORS が有効か / ネットワーク到達性を確認してください。`);
+        showError(`Ping失敗: ${e.message}.\nURL: ${finalUrl}\nヒント: 1) バックエンドで CORS を有効化、2) file:// ではなく https:// から開く、3) 必要に応じて CORS Proxy を ON に。`);
       }
     }
 
@@ -473,6 +488,16 @@
       window.loadSeries = async ()=>{ cntSeries++; };
       try { autoTick(); } finally { window.loadLatest = origLatest; window.loadSeries = origSeries; }
       assert('autoTick only latest', cntLatest===1 && cntSeries===0);
+
+      // Test 6: CORS proxy URL builder
+      $('#corsMode').value = 'corsproxy';
+      assert('corsproxy.io applied', applyCorsProxy('https://x.test/a') === 'https://corsproxy.io/?https%3A%2F%2Fx.test%2Fa');
+      $('#corsMode').value = 'allorigins';
+      assert('allorigins applied', applyCorsProxy('https://x.test/a') === 'https://api.allorigins.win/raw?url=https%3A%2F%2Fx.test%2Fa');
+      $('#corsMode').value = 'isogit';
+      assert('isogit applied', applyCorsProxy('https://x.test/a') === 'https://cors.isomorphic-git.org/https://x.test/a');
+      $('#corsMode').value = 'off';
+      assert('proxy off', applyCorsProxy('https://x.test/a') === 'https://x.test/a');
 
       const pass = results.filter(r=>r.pass).length;
       const fail = results.length - pass;
@@ -531,6 +556,7 @@
       const start = new Date(now.getTime() - 6*3600*1000);
       $('#endAt').value = fromDateToLocalInputValue(now);
       $('#startAt').value = fromDateToLocalInputValue(start);
+      $('#originTxt').textContent = location.origin || 'null';
     }
 
     loadPrefs();
