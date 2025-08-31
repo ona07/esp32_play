@@ -10,10 +10,9 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],            # GitHub Pages など複数 Origin から叩くなら *
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_origins=["*"],
+    allow_methods=["GET","POST","OPTIONS"],
     allow_headers=["*"],
-    allow_credentials=False 
 )
 
 
