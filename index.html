@@ -492,12 +492,7 @@
             <label><input type="checkbox" class="metricChk" value="distance_ultrasonic" checked> 超音波</label>
           </div>
         </div>
-        <div>
-          <label>Options</label>
-          <div class="metric-checks">
-            <label><input type="checkbox" id="mockMode"> モックデータを使用（API到達不可時）</label>
-          </div>
-        </div>
+        
       </div>
       <div class="btnrow" style="margin-top:12px;">
         <button id="loadBtn">読み込む</button>
@@ -518,10 +513,7 @@
         </select>
       </div>
       <div id="errorBox" class="errorbox"></div>
-      <div class="hint">GitHub Pages で Actions デプロイを使う場合、下の <b>Copy Pages Workflow</b> ボタンで最小構成の YAML をコピーできます。</div>
-      <div class="btnrow" style="margin-top:8px;">
-        <button id="copyWorkflowBtn" class="ghost">Copy Pages Workflow</button>
-      </div>
+      
     </section>
 
     <div class="grid">
@@ -556,8 +548,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
 
-  <script type="application/json" id="pages-workflow">{
-"yaml": "name: Deploy static to Pages\non:\n  push:\n    branches: [ main ]\n\npermissions:\n  pages: write\n  id-token: write\n\nconcurrency:\n  group: \"pages\"\n  cancel-in-progress: true\n\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/upload-pages-artifact@v3\n        with:\n          path: '.'\n  deploy:\n    needs: build\n    runs-on: ubuntu-latest\n    environment:\n      name: github-pages\n      url: ${{ steps.deployment.outputs.page_url }}\n    steps:\n      - id: deployment\n        uses: actions/deploy-pages@v4\n"}</script>
+  
 
   <script>
     // ===== Theme Management =====
@@ -688,7 +679,6 @@
         metrics: $$('.metricChk').filter(c=>c.checked).map(c=>c.value),
         auto: $('#autoRefresh').checked,
         interval: $('#autoInterval').value,
-        mock: $('#mockMode') ? $('#mockMode').checked : false,
       };
       localStorage.setItem('esp32mon:prefs', JSON.stringify(prefs));
     }
@@ -709,7 +699,6 @@
         if(Array.isArray(p.metrics)) $$('.metricChk').forEach(c=> c.checked = p.metrics.includes(c.value));
         if(typeof p.auto==='boolean') $('#autoRefresh').checked = p.auto;
         if(p.interval) $('#autoInterval').value = p.interval;
-        if(typeof p.mock==='boolean' && $('#mockMode')) $('#mockMode').checked = p.mock;
         
         // デバイス選択の表示更新
         updateDeviceDisplay();
@@ -964,28 +953,7 @@
       URL.revokeObjectURL(url);
     }
 
-    // ===== Mock data (optional) =====
-    function generateMockSeries(start, end){
-      const out = [];
-      const ms = 60*1000;
-      for(let t = start.getTime(); t < end.getTime(); t += 5*ms){
-        const d = new Date(t);
-        const base = 20 + 5*Math.sin(t/3.6e6);
-        out.push({ ts: d.toISOString(), metric: 'temperature', value: +(base + (Math.random()-0.5)).toFixed(1), meta: { unit:'C', mock:true } });
-        out.push({ ts: d.toISOString(), metric: 'humidity', value: +(55 + 10*Math.cos(t/3.6e6) + (Math.random()-0.5)).toFixed(1), meta: { unit:'%', mock:true } });
-        out.push({ ts: d.toISOString(), metric: 'distance_ultrasonic', value: +(50 + 20*Math.sin(t/1.8e6) + (Math.random()-0.5)).toFixed(1), meta: { unit:'cm', mock:true } });
-      }
-      return out;
-    }
     
-    function generateMockLatest(){
-      const now = new Date();
-      return [
-        { device_id: 1, ts: now.toISOString(), metric: 'temperature', value: 24.2, meta:{ unit:'C', mock:true } },
-        { device_id: 1, ts: now.toISOString(), metric: 'humidity', value: 59.1, meta:{ unit:'%', mock:true } },
-        { device_id: 1, ts: now.toISOString(), metric: 'distance_ultrasonic', value: 32.5, meta:{ unit:'cm', zone:'OVER_EQ_20cm', mock:true } },
-      ];
-    }
 
     // ===== Fetch helpers (direct only) =====
     const controllers = { latest: null, series: null };
@@ -1012,16 +980,10 @@
         setStatus('latest ok', 'success');
       }catch(e){
         console.error('latest error', e);
-        if($('#mockMode') && $('#mockMode').checked){
-          renderLatest(generateMockLatest());
-          setStatus('latest mock', 'success');
-          showError(`最新値の取得に失敗: ${e.message}. モックデータを表示中。`);
-        } else {
-          setStatus('latest error', 'error');
-          const isFile = location.protocol === 'file:' || location.origin === 'null';
-          const tip = isFile ? '\n※ 現在 file:// から開いています。ブラウザの制約でクロスオリジンの取得が失敗する場合があります。GitHub Pages など HTTPS ホスティングから開いてください。' : '';
-          showError(`最新値の取得に失敗しました。原因例: device_id 不一致 / ネットワーク / URL / サーバ停止 / CORS（サーバ側で許可が必要）。\n詳細: ${e instanceof DOMException ? e.name : e.message}${tip}`);
-        }
+        setStatus('latest error', 'error');
+        const isFile = location.protocol === 'file:' || location.origin === 'null';
+        const tip = isFile ? '\n※ 現在 file:// から開いています。ブラウザの制約でクロスオリジンの取得が失敗する場合があります。GitHub Pages など HTTPS ホスティングから開いてください。' : '';
+        showError(`最新値の取得に失敗しました。原因例: device_id 不一致 / ネットワーク / URL / サーバ停止 / CORS（サーバ側で許可が必要）。\n詳細: ${e instanceof DOMException ? e.name : e.message}${tip}`);
       }
     }
 
@@ -1048,22 +1010,10 @@
         setStatus(`series ok (${filtered.length} points)`, 'success');
       }catch(e){
         console.error('series error', e);
-        if($('#mockMode') && $('#mockMode').checked){
-          const start = new Date($('#startAt').value);
-          const end = new Date($('#endAt').value);
-          const mock = generateMockSeries(start, end);
-          const filtered = mock.filter(r => selected.includes(r.metric));
-          setDatasets(filtered, selected);
-          renderTable(filtered);
-          window.__lastSeries = filtered;
-          setStatus(`series mock (${filtered.length} points)`, 'success');
-          showError(`時系列の取得に失敗: ${e.message}. モックデータを表示中。`);
-        } else {
-          setStatus('series error', 'error');
-          const isFile = location.protocol === 'file:' || location.origin === 'null';
-          const tip = isFile ? '\n※ 現在 file:// から開いています。ブラウザの制約でクロスオリジンの取得が失敗する場合があります。GitHub Pages など HTTPS ホスティングから開いてください。' : '';
-          showError(`時系列データの取得に失敗しました。原因例: device_id 不一致 / ネットワーク / URL / サーバ停止 / CORS（サーバ側で許可が必要）。\n詳細: ${e instanceof DOMException ? e.name : e.message}${tip}`);
-        }
+        setStatus('series error', 'error');
+        const isFile = location.protocol === 'file:' || location.origin === 'null';
+        const tip = isFile ? '\n※ 現在 file:// から開いています。ブラウザの制約でクロスオリジンの取得が失敗する場合があります。GitHub Pages など HTTPS ホスティングから開いてください。' : '';
+        showError(`時系列データの取得に失敗しました。原因例: device_id 不一致 / ネットワーク / URL / サーバ停止 / CORS（サーバ側で許可が必要）。\n詳細: ${e instanceof DOMException ? e.name : e.message}${tip}`);
       }
     }
 
@@ -1108,12 +1058,7 @@
       // Test 3: setDatasets empty ok
       try { setDatasets([], ['temperature']); assert('setDatasets empty ok', true); } catch(e) { assert('setDatasets empty ok', false); }
 
-      // Test 4: mock generators
-      const start = new Date(Date.now()-3600*1000), end = new Date();
-      const mockS = generateMockSeries(start, end);
-      assert('mock series non-empty', Array.isArray(mockS) && mockS.length>0);
-      const mockL = generateMockLatest();
-      assert('mock latest length=3', Array.isArray(mockL) && mockL.length===3);
+      
 
       // Test 5: autoTick should call ONLY latest
       const origLatest = window.loadLatest; const origSeries = window.loadSeries;
@@ -1187,19 +1132,7 @@
     $('#autoRefresh').addEventListener('change', setupAuto);
     $('#autoInterval').addEventListener('change', setupAuto);
 
-    // Copy minimal workflow to clipboard
-    document.addEventListener('click', (e)=>{
-      if(e.target && e.target.id === 'copyWorkflowBtn'){
-        try{
-          const obj = JSON.parse(document.getElementById('pages-workflow').textContent);
-          navigator.clipboard.writeText(obj.yaml).then(()=>{
-            alert('📋 Copied pages.yml to clipboard!\n→ リポジトリに .github/workflows/pages.yml として保存し、Settings → Pages で Source を GitHub Actions にしてください。');
-          });
-        }catch(err){
-          alert('❌ Copy failed: '+ String(err));
-        }
-      }
-    });
+    
 
     // ===== Mobile Enhancement =====
     // Add touch feedback
