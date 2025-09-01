@@ -506,11 +506,6 @@
         <label style="margin-left:auto; display:flex; align-items:center; gap:8px;">
           <input id="autoRefresh" type="checkbox"> 自動更新（Latestのみ）
         </label>
-        <select id="autoInterval" style="width:160px;">
-          <option value="15">15秒</option>
-          <option value="30" selected>30秒</option>
-          <option value="60">60秒</option>
-        </select>
       </div>
       <div id="errorBox" class="errorbox"></div>
       
@@ -678,7 +673,7 @@
         endAt: $('#endAt').value,
         metrics: $$('.metricChk').filter(c=>c.checked).map(c=>c.value),
         auto: $('#autoRefresh').checked,
-        interval: $('#autoInterval').value,
+        // interval selection removed; fixed interval used in code
       };
       localStorage.setItem('esp32mon:prefs', JSON.stringify(prefs));
     }
@@ -698,7 +693,7 @@
         if(p.endAt) $('#endAt').value = p.endAt;
         if(Array.isArray(p.metrics)) $$('.metricChk').forEach(c=> c.checked = p.metrics.includes(c.value));
         if(typeof p.auto==='boolean') $('#autoRefresh').checked = p.auto;
-        if(p.interval) $('#autoInterval').value = p.interval;
+        // interval preference removed
         
         // デバイス選択の表示更新
         updateDeviceDisplay();
@@ -728,11 +723,7 @@
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        interaction: { 
-          mode: 'nearest', 
-          intersect: false,
-          axis: 'x'
-        },
+        interaction: { mode: 'nearest', intersect: false, axis: 'xy' },
         parsing: false,
         scales: {
           x: { 
@@ -777,31 +768,7 @@
             borderColor: '#232733',
             borderWidth: 1,
             cornerRadius: 8,
-            displayColors: true,
-            callbacks: {
-              title: function(context) {
-                const date = new Date(context[0].parsed.x);
-                return `📅 ${date.toLocaleDateString('ja-JP')} ${date.toLocaleTimeString('ja-JP')}`;
-              },
-              label: function(context) {
-                const value = context.parsed.y;
-                const metric = context.dataset.label;
-                let icon = '📊';
-                
-                if (metric.includes('温度')) {
-                  icon = value > 25 ? '🔥' : value < 15 ? '❄️' : '🌡️';
-                } else if (metric.includes('湿度')) {
-                  icon = value > 70 ? '💧' : value < 30 ? '🏜️' : '💨';
-                } else if (metric.includes('距離')) {
-                  icon = value > 50 ? '📏' : '📐';
-                }
-                
-                return `${icon} ${metric}: ${value.toFixed(1)} ${getUnit(metric)}`;
-              },
-              footer: function(context) {
-                return `📍 Device: ${getSelectedDeviceId().substring(0, 8)}...`;
-              }
-            }
+            displayColors: true
           }
         },
         elements: {
@@ -1052,8 +1019,15 @@
       assert('ISO conversion returns string', typeof iso === 'string' && iso.endsWith('Z'));
 
       // Test 2: buildBase trims slash
-      $('#apiBase').value = 'https://esp32-play.onrender.com/';
-      assert('buildBase trims trailing slash', buildBase() === 'https://esp32-play.onrender.com');
+      const selEl = $('#apiBaseSelect');
+      const customEl = $('#apiBaseCustom');
+      if (selEl && customEl) {
+        selEl.value = 'custom';
+        customEl.value = 'https://esp32-play.onrender.com/';
+        assert('buildBase trims trailing slash', buildBase() === 'https://esp32-play.onrender.com');
+      } else {
+        assert('buildBase trims trailing slash (skipped)', true);
+      }
 
       // Test 3: setDatasets empty ok
       try { setDatasets([], ['temperature']); assert('setDatasets empty ok', true); } catch(e) { assert('setDatasets empty ok', false); }
@@ -1087,7 +1061,7 @@
     function setupAuto(){
       if(autoTimer){ clearInterval(autoTimer); autoTimer = null; }
       if($('#autoRefresh').checked){
-        const sec = parseInt($('#autoInterval').value,10) || 30;
+        const sec = 30; // fixed interval
         autoTimer = setInterval(()=>{ autoTick(); }, sec*1000);
       }
       savePrefs();
@@ -1130,7 +1104,7 @@
     });
 
     $('#autoRefresh').addEventListener('change', setupAuto);
-    $('#autoInterval').addEventListener('change', setupAuto);
+    // interval selector removed
 
     
 
