@@ -1000,7 +1000,9 @@
         const deviceId = getSelectedDeviceId();
         if(!deviceId) return;
         const { start, end } = getWorkRange();
-        const url = `${base}/series?device_id=${encodeURIComponent(deviceId)}&start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}`;
+        // 直前の状態を推定するため、開始時刻の少し前も取得
+        const startQ = new Date(start.getTime() - 60*60*1000); // 1時間前
+        const url = `${base}/series?device_id=${encodeURIComponent(deviceId)}&start=${encodeURIComponent(startQ.toISOString())}&end=${encodeURIComponent(end.toISOString())}`;
         const controller = new AbortController();
         if(controllers.work) controllers.work.abort();
         controllers.work = controller;
