@@ -904,9 +904,15 @@
           backgroundColor: colors.distance_ultrasonic.background,
           fill: true,
           segment: {
-            borderColor: ctx => (ctx.p1.parsed.y <= 20 ? '#dc3545' : colors.distance_ultrasonic.border)
+            borderColor: (ctx) => {
+              const y = ctx && ctx.p1 && ctx.p1.parsed ? ctx.p1.parsed.y : undefined;
+              return (typeof y === 'number' && y <= 20) ? '#dc3545' : colors.distance_ultrasonic.border;
+            }
           },
-          pointBackgroundColor: ctx => (ctx.parsed.y <= 20 ? '#dc3545' : '#ffffff')
+          pointBackgroundColor: (ctx) => {
+            const y = ctx && ctx.parsed ? ctx.parsed.y : undefined;
+            return (typeof y === 'number' && y <= 20) ? '#dc3545' : '#ffffff';
+          }
         });
       }
 
