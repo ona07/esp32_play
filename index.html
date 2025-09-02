@@ -531,20 +531,14 @@
           <div class="metric-checks">
             <label><input type="checkbox" class="metricChk" value="temperature" checked> 温度</label>
             <label><input type="checkbox" class="metricChk" value="humidity" checked> 湿度</label>
-            <label><input type="checkbox" class="metricChk" value="distance_ultrasonic" checked> 超音波</label>
           </div>
         </div>
         
       </div>
       <div class="btnrow" style="margin-top:12px;">
         <button id="loadBtn">読み込む</button>
-        <button class="secondary" data-quick="1h">直近1時間</button>
-        <button class="secondary" data-quick="6h">直近6時間</button>
-        <button class="secondary" data-quick="24h">直近24時間</button>
         <button id="latestBtn" class="ghost">最新を更新</button>
         <button id="dlCsvBtn" class="ghost">CSVダウンロード</button>
-        <button id="pingBtn" class="ghost">API疎通 (Ping)</button>
-        <button id="selfTestBtn" class="ghost">Self-Test</button>
         <label style="margin-left:auto; display:flex; align-items:center; gap:8px;">
           <input id="autoRefresh" type="checkbox"> 自動更新（Latestのみ）
         </label>
@@ -565,7 +559,6 @@
         <div id="workBadge" class="work-badge idle">離席中</div>
         <div id="workDistance" class="work-distance">-- cm</div>
       </div>
-      <div class="hint">20cm以下で「作業中」と判定します</div>
       <div class="chart-container" style="margin-top:8px;">
         <canvas id="chartDist"></canvas>
       </div>
@@ -1120,7 +1113,8 @@
     function renderLatest(cards){
       const wrap = $('#latestCards');
       wrap.innerHTML = '';
-      for(const r of cards){
+      const onlyTH = Array.isArray(cards) ? cards.filter(r => r.metric==='temperature' || r.metric==='humidity') : [];
+      for(const r of onlyTH){
         const meta = r.meta || {};
         const zone = meta.zone ? String(meta.zone) : '';
         const zonePill = zone ? `<span class="zone">${zone}</span>` : '';
@@ -1235,29 +1229,24 @@
       if(!deviceId){ showError('Device ID を選択または入力してください'); return; }
       const startISO = toISOZFromLocalInput($('#startAt').value);
       const endISO = toISOZFromLocalInput($('#endAt').value);
-      const selected = $$('.metricChk').filter(c=>c.checked).map(c=>c.value);
+      // seriesでは超音波を取得しない（温度・湿度のみ）
+      const selected = $$('.metricChk').filter(c=>c.checked).map(c=>c.value).filter(m=> m==='temperature' || m==='humidity');
       if(!startISO || !endISO){ setStatus('start/end未設定', 'error'); return; }
       
       setStatus('loading series…', 'loading'); 
       showError('');
-      const url = `${base}/series?device_id=${encodeURIComponent(deviceId)}&start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}`;
-      
       try{
-        const j = await fetchJSON(url, 'series');
-        const all = Array.isArray(j.data) ? j.data : [];
-        const filtered = all.filter(r => selected.includes(r.metric));
-        setDatasets(filtered, selected);
-        renderTable(filtered);
-        window.__lastSeries = filtered;
-        setStatus(`series ok (${filtered.length} points)`, 'success');
-        // series からも作業ステータスを概算更新（最新時刻の距離）
-        const lastDist = filtered
-          .filter(r => r.metric === 'distance_ultrasonic')
-          .sort((a,b) => new Date(b.ts) - new Date(a.ts))[0];
-        if (lastDist) {
-          setWorkBadge(Number(lastDist.value) <= 20);
-          setWorkDistance(Number(lastDist.value));
+        let merged = [];
+        for(const m of selected){
+          const url = `${base}/series?device_id=${encodeURIComponent(deviceId)}&start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}&metric=${encodeURIComponent(m)}`;
+          const j = await fetchJSON(url, null);
+          const arr = Array.isArray(j.data) ? j.data : [];
+          merged = merged.concat(arr);
         }
+        setDatasets(merged, selected);
+        renderTable(merged);
+        window.__lastSeries = merged;
+        setStatus(`series ok (${merged.length} points)`, 'success');
       }catch(e){
         console.error('series error', e);
         setStatus('series error', 'error');
@@ -1356,25 +1345,13 @@
     $('#deviceIdCustom').addEventListener('input', savePrefs);
     $('#loadBtn').addEventListener('click', () => { savePrefs(); loadLatest(); loadSeries(); });
     $('#latestBtn').addEventListener('click', () => { savePrefs(); loadLatest(); });
-    $('#pingBtn').addEventListener('click', () => { savePrefs(); pingApi(); });
-    $('#selfTestBtn').addEventListener('click', selfTests);
 
     $$('#config input, #config select').forEach(el => el.addEventListener('change', savePrefs));
 
     $('#apiBaseSelect')?.addEventListener('change', updateApiBaseDisplay);
     $('#apiBaseCustom')?.addEventListener('input', savePrefs);
 
-    $$('#config button.secondary[data-quick]').forEach(btn => btn.addEventListener('click', (e)=>{
-      const now = new Date();
-      const k = e.currentTarget.getAttribute('data-quick');
-      const map = { '1h': 1, '6h': 6, '24h': 24 };
-      const hours = map[k] || 6;
-      const start = new Date(now.getTime() - hours*3600*1000);
-      $('#endAt').value = fromDateToLocalInputValue(now);
-      $('#startAt').value = fromDateToLocalInputValue(start);
-      savePrefs();
-      loadSeries();
-    }));
+    // quick range buttons removed
 
     $('#dlCsvBtn').addEventListener('click', ()=>{
       const rows = window.__lastSeries || [];
