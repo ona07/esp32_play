@@ -995,26 +995,38 @@
     }
 
     async function loadWorkStatusDay(){
+      const base = buildBase();
+      const deviceId = getSelectedDeviceId();
+      if(!deviceId) return;
+      const { start, end } = getWorkRange();
+      if(!(start instanceof Date) || !(end instanceof Date)) return;
+      // 直前の状態を推定するため、開始時刻の少し前も取得
+      const startQ = new Date(start.getTime() - 60*60*1000); // 1時間前
+      const url = `${base}/series?device_id=${encodeURIComponent(deviceId)}&start=${encodeURIComponent(startQ.toISOString())}&end=${encodeURIComponent(end.toISOString())}`;
+      // 前リクエストがあれば中断
+      if(controllers.work) { try{ controllers.work.abort(); }catch(_){} }
+      const controller = new AbortController();
+      controllers.work = controller;
       try{
-        const base = buildBase();
-        const deviceId = getSelectedDeviceId();
-        if(!deviceId) return;
-        const { start, end } = getWorkRange();
-        // 直前の状態を推定するため、開始時刻の少し前も取得
-        const startQ = new Date(start.getTime() - 60*60*1000); // 1時間前
-        const url = `${base}/series?device_id=${encodeURIComponent(deviceId)}&start=${encodeURIComponent(startQ.toISOString())}&end=${encodeURIComponent(end.toISOString())}`;
-        const controller = new AbortController();
-        if(controllers.work) controllers.work.abort();
-        controllers.work = controller;
         const res = await fetch(url, { signal: controller.signal, cache:'no-store', mode:'cors' });
         if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         const j = await res.json();
         const all = Array.isArray(j.data) ? j.data : [];
-        const pts = all.filter(r=>r.metric==='distance_ultrasonic').map(r=>({ x: new Date(r.ts).getTime(), y: Number(r.value) })).filter(p=>Number.isFinite(p.y));
+        const pts = all
+          .filter(r=>r.metric==='distance_ultrasonic')
+          .map(r=>({ x: new Date(r.ts).getTime(), y: Number(r.value) }))
+          .filter(p=>Number.isFinite(p.y));
         updateWorkBar(pts);
       }catch(e){
+        // 中断は正常系として無視
+        if (e && (e.name === 'AbortError' || e.code === 20)) {
+          return;
+        }
         console.warn('work status fetch error:', e);
+        // 失敗時は手元データで描画を試みる
         updateWorkBar();
+      } finally {
+        if (controllers.work === controller) controllers.work = null;
       }
     }
 
