@@ -661,6 +661,8 @@
       }
       savePrefs();
       if($('#autoRefresh')?.checked){ loadLatest(); }
+      // 作業ステータスもデバイス変更時に更新
+      loadWorkStatusDay();
     }
     
     // ===== Utilities =====
@@ -978,8 +980,7 @@
       chartTH.data.datasets = thDatasets;
       chartTH.update();
 
-      // Update work status bar (today timeline)
-      updateWorkBar(groups.distance_ultrasonic);
+      // work status timeline is fetched independently
     }
 
     let workDayStart = null;
@@ -991,6 +992,28 @@
     function getDistancePointsFromLastSeries(){
       const rows = Array.isArray(window.__lastSeries) ? window.__lastSeries : [];
       return rows.filter(r=>r.metric==='distance_ultrasonic').map(r=>({ x: new Date(r.ts).getTime(), y: Number(r.value) })).filter(p=>Number.isFinite(p.y));
+    }
+
+    async function loadWorkStatusDay(){
+      try{
+        const base = buildBase();
+        const deviceId = getSelectedDeviceId();
+        if(!deviceId) return;
+        const { start, end } = getWorkRange();
+        const url = `${base}/series?device_id=${encodeURIComponent(deviceId)}&start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}`;
+        const controller = new AbortController();
+        if(controllers.work) controllers.work.abort();
+        controllers.work = controller;
+        const res = await fetch(url, { signal: controller.signal, cache:'no-store', mode:'cors' });
+        if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+        const j = await res.json();
+        const all = Array.isArray(j.data) ? j.data : [];
+        const pts = all.filter(r=>r.metric==='distance_ultrasonic').map(r=>({ x: new Date(r.ts).getTime(), y: Number(r.value) })).filter(p=>Number.isFinite(p.y));
+        updateWorkBar(pts);
+      }catch(e){
+        console.warn('work status fetch error:', e);
+        updateWorkBar();
+      }
     }
 
     function updateWorkBar(distancePoints){
@@ -1133,7 +1156,7 @@
     
 
     // ===== Fetch helpers (direct only) =====
-    const controllers = { latest: null, series: null };
+    const controllers = { latest: null, series: null, work: null };
     async function fetchJSON(url, key){
       const controller = new AbortController();
       if(key){ if(controllers[key]) controllers[key].abort(); controllers[key] = controller; }
@@ -1328,12 +1351,12 @@
     document.getElementById('workPrevBtn')?.addEventListener('click', ()=>{
       ensureWorkDayInit();
       workDayStart = new Date(workDayStart.getTime() - 24*3600*1000);
-      updateWorkBar();
+      loadWorkStatusDay();
     });
     document.getElementById('workNextBtn')?.addEventListener('click', ()=>{
       ensureWorkDayInit();
       workDayStart = new Date(workDayStart.getTime() + 24*3600*1000);
-      updateWorkBar();
+      loadWorkStatusDay();
     });
 
     
@@ -1416,6 +1439,7 @@
       // 初回のみ: Latest + Series を読み込み（以後 Series は手動）
       loadLatest();
       loadSeries();
+      loadWorkStatusDay();
       setupAuto();
       
       console.log('Initial load completed');
