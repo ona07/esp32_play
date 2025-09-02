@@ -1022,35 +1022,57 @@
       const { start, end } = getWorkRange();
       setWorkDayLabel();
       const ptsSrc = Array.isArray(distancePoints) && distancePoints.length ? distancePoints : getDistancePointsFromLastSeries();
-      // ensure x range fixed to today
-      chartDist.options.scales.x.min = start.getTime();
-      chartDist.options.scales.x.max = end.getTime();
-      chartDist.options.scales.y.type = 'category';
+      const startMs = start.getTime();
+      const endMs = end.getTime();
 
-      // Build segments from points (assumes points sorted by time)
+      // ensure x range fixed to selected day
+      chartDist.options.scales.x.min = startMs;
+      chartDist.options.scales.x.max = endMs;
+      chartDist.options.scales.y.type = 'category';
+      // label with selected day
+      const dayLabel = workDayStart ? workDayStart.toLocaleDateString('ja-JP') : '本日';
+      chartDist.data.labels = [dayLabel];
+
+      // Prepare points sorted
       const pts = Array.isArray(ptsSrc) ? ptsSrc.slice().sort((a,b)=>a.x-b.x) : [];
-      const working = [];
-      const away = [];
-      let prevT = start.getTime();
-      let prevState = false; // assume away until first point
-      for(const p of pts){
-        const t = Math.max(start.getTime(), Math.min(end.getTime(), p.x));
-        if(t > prevT){
-          const seg = { y: '本日', x: [prevT, t] };
-          (prevState ? working : away).push(seg);
+
+      // Determine state just before the day start (from last point < start)
+      let prevState = false; // default = 離席中
+      for (let i = pts.length - 1; i >= 0; i--) {
+        const p = pts[i];
+        if (p.x < startMs) { prevState = (typeof p.y === 'number') && (p.y <= 20); break; }
+      }
+
+      // Build segments that only change color on threshold crossing
+      const segments = [];
+      let segStart = startMs;
+      for (const p of pts) {
+        if (p.x < startMs) continue; // ignore before day
+        if (p.x >= endMs) break;      // stop after day
+        const currState = (typeof p.y === 'number') && (p.y <= 20);
+        if (currState !== prevState) {
+          // close previous segment at this timestamp
+          const clampedT = Math.max(startMs, Math.min(endMs, p.x));
+          if (clampedT > segStart) {
+            segments.push({ state: prevState, x: [segStart, clampedT] });
+          }
+          // start new segment from this point
+          segStart = clampedT;
+          prevState = currState;
         }
-        prevState = (typeof p.y === 'number') ? (p.y <= 20) : prevState;
-        prevT = t;
-        if(prevT >= end.getTime()) break;
       }
-      if(prevT < end.getTime()){
-        const seg = { y: '本日', x: [prevT, end.getTime()] };
-        (prevState ? working : away).push(seg);
+      // close final segment to end of day
+      if (segStart < endMs) {
+        segments.push({ state: prevState, x: [segStart, endMs] });
       }
+
+      // Split into datasets
+      const working = segments.filter(s => s.state).map(s => ({ y: dayLabel, x: s.x }));
+      const away    = segments.filter(s => !s.state).map(s => ({ y: dayLabel, x: s.x }));
 
       chartDist.data.datasets = [
-        { label: '作業中', data: working, backgroundColor: '#22c55e' },
-        { label: '離席中', data: away, backgroundColor: '#64748b' }
+        { label: '作業中', data: working, backgroundColor: '#22c55e', borderRadius: 4 },
+        { label: '離席中', data: away, backgroundColor: '#64748b', borderRadius: 4 }
       ];
       chartDist.update();
     }
