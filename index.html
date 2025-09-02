@@ -108,11 +108,28 @@
       border-color: var(--success);
       color: #fff;
       background: linear-gradient(135deg, #16a34a, #22c55e);
+      box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6);
+      animation: pulse 1.8s infinite;
     }
     .work-badge.idle {
       border-color: var(--border);
       color: var(--muted);
       background: var(--card);
+    }
+
+    .work-distance {
+      font-size: 22px;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent), #7c3aed);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6); }
+      70% { box-shadow: 0 0 0 12px rgba(34, 197, 94, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
     }
 
     .panel { 
@@ -538,21 +555,24 @@
         <h3 style="margin:0 0 16px; font-size:16px;">Latest</h3>
         <div class="cards" id="latestCards"><!-- cards injected here --></div>
       </section>
+
       <section class="panel">
-      <h3 style="margin:0 0 16px; font-size:16px;">作業ステータス</h3>
-      <div class="btnrow" style="margin-bottom:12px;">
-        <div id="workBadge" class="work-badge idle">待機中</div>
-      </div>
+        <h3 style="margin:0 0 16px; font-size:16px;">温度・湿度</h3>
+        <div class="chart-container">
+          <canvas id="chartTH"></canvas>
+        </div>
+      </section>
 
-      <h3 style="margin:12px 0 8px; font-size:16px;">温度・湿度</h3>
-      <div class="chart-container">
-        <canvas id="chartTH"></canvas>
-      </div>
-
-      <h3 style="margin:16px 0 8px; font-size:16px;">距離</h3>
-      <div class="chart-container">
-        <canvas id="chartDist"></canvas>
-      </div>
+      <section class="panel">
+        <h3 style="margin:0 0 16px; font-size:16px;">作業ステータス</h3>
+        <div class="btnrow" style="margin-bottom:8px; align-items: center; gap: 12px;">
+          <div id="workBadge" class="work-badge idle">待機中</div>
+          <div id="workDistance" class="work-distance">-- cm</div>
+        </div>
+        <div class="hint">20cm以下で「作業中」と判定します</div>
+        <div class="chart-container" style="margin-top:8px;">
+          <canvas id="chartDist"></canvas>
+        </div>
       </section>
     </div>
 
@@ -833,8 +853,21 @@
         const y = scales.y;
         const y20 = y.getPixelForValue(20);
         ctx.save();
+        // Shade zone under 20cm
         ctx.fillStyle = 'rgba(220, 53, 69, 0.08)';
         ctx.fillRect(left, y20, right - left, bottom - y20);
+        // Threshold line at 20cm
+        ctx.strokeStyle = '#dc3545';
+        ctx.setLineDash([6, 6]);
+        ctx.beginPath();
+        ctx.moveTo(left, y20);
+        ctx.lineTo(right, y20);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        // Label
+        ctx.fillStyle = '#dc3545';
+        ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+        ctx.fillText('20 cm', left + 8, y20 - 6);
         ctx.restore();
       }
     };
@@ -912,6 +945,14 @@
           pointBackgroundColor: (ctx) => {
             const y = ctx && ctx.parsed ? ctx.parsed.y : undefined;
             return (typeof y === 'number' && y <= 20) ? '#dc3545' : '#ffffff';
+          },
+          pointRadius: (ctx) => {
+            const y = ctx && ctx.parsed ? ctx.parsed.y : undefined;
+            return (typeof y === 'number' && y <= 20) ? 5 : 3;
+          },
+          pointHoverRadius: (ctx) => {
+            const y = ctx && ctx.parsed ? ctx.parsed.y : undefined;
+            return (typeof y === 'number' && y <= 20) ? 8 : 6;
           }
         });
       }
@@ -991,7 +1032,14 @@
         const dist = Array.isArray(arr) ? arr.find(r => r.metric === 'distance_ultrasonic') : null;
         const v = dist ? Number(dist.value) : NaN;
         setWorkBadge(Number.isFinite(v) && v <= 20);
+        setWorkDistance(Number.isFinite(v) ? v : null);
       }catch(_e){ /* noop */ }
+    }
+
+    function setWorkDistance(v){
+      const el = document.getElementById('workDistance');
+      if(!el) return;
+      el.textContent = (typeof v === 'number') ? `${v.toFixed(1)} cm` : '-- cm';
     }
 
     function makeCSV(series){
@@ -1074,7 +1122,10 @@
         const lastDist = filtered
           .filter(r => r.metric === 'distance_ultrasonic')
           .sort((a,b) => new Date(b.ts) - new Date(a.ts))[0];
-        if (lastDist) setWorkBadge(Number(lastDist.value) <= 20);
+        if (lastDist) {
+          setWorkBadge(Number(lastDist.value) <= 20);
+          setWorkDistance(Number(lastDist.value));
+        }
       }catch(e){
         console.error('series error', e);
         setStatus('series error', 'error');
