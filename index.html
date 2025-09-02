@@ -861,7 +861,8 @@
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        parsing: false,
+        // enable default parsing so floating bars ([start,end]) are recognized
+        parsing: true,
         indexAxis: 'y',
         scales: {
           x: {
