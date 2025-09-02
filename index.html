@@ -93,6 +93,28 @@
     .status-badge.success { border-color: var(--success); color: var(--success); }
     .status-badge.error { border-color: var(--danger); color: var(--danger); }
 
+    .work-badge {
+      font-size: 13px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      min-width: 80px;
+      text-align: center;
+      font-weight: 700;
+      letter-spacing: .2px;
+    }
+    .work-badge.working {
+      border-color: var(--success);
+      color: #fff;
+      background: linear-gradient(135deg, #16a34a, #22c55e);
+    }
+    .work-badge.idle {
+      border-color: var(--border);
+      color: var(--muted);
+      background: var(--card);
+    }
+
     .panel { 
       background: var(--panel); 
       border: 1px solid var(--border); 
@@ -517,10 +539,20 @@
         <div class="cards" id="latestCards"><!-- cards injected here --></div>
       </section>
       <section class="panel">
-        <h3 style="margin:0 0 16px; font-size:16px;">Chart</h3>
-        <div class="chart-container">
-          <canvas id="chart"></canvas>
-        </div>
+      <h3 style="margin:0 0 16px; font-size:16px;">作業ステータス</h3>
+      <div class="btnrow" style="margin-bottom:12px;">
+        <div id="workBadge" class="work-badge idle">待機中</div>
+      </div>
+
+      <h3 style="margin:12px 0 8px; font-size:16px;">温度・湿度</h3>
+      <div class="chart-container">
+        <canvas id="chartTH"></canvas>
+      </div>
+
+      <h3 style="margin:16px 0 8px; font-size:16px;">距離</h3>
+      <div class="chart-container">
+        <canvas id="chartDist"></canvas>
+      </div>
       </section>
     </div>
 
@@ -715,9 +747,11 @@
       return getApiBaseFromUI();
     }
 
-    // ===== Chart with Enhanced Tooltips =====
-    const ctx = document.getElementById('chart').getContext('2d');
-    const chart = new Chart(ctx, {
+    // ===== Charts (Temp/Humidity + Distance) =====
+    const thCtx = document.getElementById('chartTH').getContext('2d');
+    const distCtx = document.getElementById('chartDist').getContext('2d');
+
+    const baseChartOptions = {
       type: 'line',
       data: { datasets: [] },
       options: {
@@ -740,17 +774,7 @@
               color: 'rgba(255, 255, 255, 0.1)'
             }
           },
-          y: { 
-            title: { display: true, text: 'Temp/Humidity', color: '#9aa4b2' },
-            grid: {
-              color: 'rgba(255, 255, 255, 0.1)'
-            }
-          },
-          y2: { 
-            position: 'right', 
-            grid: { drawOnChartArea: false }, 
-            title: { display: true, text: 'Distance (cm)', color: '#9aa4b2' }
-          }
+          y: { grid: { color: 'rgba(255, 255, 255, 0.1)' } }
         },
         plugins: { 
           legend: { 
@@ -784,6 +808,50 @@
           }
         }
       }
+    };
+
+    const chartTH = new Chart(thCtx, {
+      ...baseChartOptions,
+      options: {
+        ...baseChartOptions.options,
+        scales: {
+          ...baseChartOptions.options.scales,
+          y: { 
+            ...baseChartOptions.options.scales.y,
+            title: { display: true, text: 'Temp/Humidity', color: '#9aa4b2' }
+          }
+        }
+      }
+    });
+
+    const distanceThresholdPlugin = {
+      id: 'distanceThreshold',
+      afterDraw(chart) {
+        const { ctx, chartArea, scales } = chart;
+        if (!chartArea || !scales?.y) return;
+        const { left, right, top, bottom } = chartArea;
+        const y = scales.y;
+        const y20 = y.getPixelForValue(20);
+        ctx.save();
+        ctx.fillStyle = 'rgba(220, 53, 69, 0.08)';
+        ctx.fillRect(left, y20, right - left, bottom - y20);
+        ctx.restore();
+      }
+    };
+
+    const chartDist = new Chart(distCtx, {
+      ...baseChartOptions,
+      plugins: [distanceThresholdPlugin],
+      options: {
+        ...baseChartOptions.options,
+        scales: {
+          ...baseChartOptions.options.scales,
+          y: { 
+            ...baseChartOptions.options.scales.y,
+            title: { display: true, text: 'Distance (cm)', color: '#9aa4b2' }
+          }
+        }
+      }
     });
 
     function getUnit(metric) {
@@ -808,40 +876,44 @@
         if(Number.isFinite(y)) groups[r.metric].push({ x, y });
       }
       
-      const datasets = [];
+      const thDatasets = [];
       if(selected.includes('temperature')) {
-        datasets.push({
+        thDatasets.push({
           label: '温度 (°C)',
           data: groups.temperature,
-          yAxisID: 'y',
           borderColor: colors.temperature.border,
           backgroundColor: colors.temperature.background,
           fill: true
         });
       }
       if(selected.includes('humidity')) {
-        datasets.push({
+        thDatasets.push({
           label: '湿度 (%)',
           data: groups.humidity,
-          yAxisID: 'y',
           borderColor: colors.humidity.border,
           backgroundColor: colors.humidity.background,
           fill: true
         });
       }
+      const distDatasets = [];
       if(selected.includes('distance_ultrasonic')) {
-        datasets.push({
+        distDatasets.push({
           label: '距離 (cm)',
           data: groups.distance_ultrasonic,
-          yAxisID: 'y2',
           borderColor: colors.distance_ultrasonic.border,
           backgroundColor: colors.distance_ultrasonic.background,
-          fill: true
+          fill: true,
+          segment: {
+            borderColor: ctx => (ctx.p1.parsed.y <= 20 ? '#dc3545' : colors.distance_ultrasonic.border)
+          },
+          pointBackgroundColor: ctx => (ctx.parsed.y <= 20 ? '#dc3545' : '#ffffff')
         });
       }
-      
-      chart.data.datasets = datasets;
-      chart.update();
+
+      chartTH.data.datasets = thDatasets;
+      chartTH.update();
+      chartDist.data.datasets = distDatasets;
+      chartDist.update();
     }
 
     function renderTable(series){
@@ -897,6 +969,23 @@
         `;
         wrap.appendChild(div);
       }
+      // 更新: 最新データから作業状態を判定
+      updateWorkStateFromLatest(cards);
+    }
+
+    function setWorkBadge(isWorking){
+      const el = document.getElementById('workBadge');
+      if(!el) return;
+      el.textContent = isWorking ? '作業中' : '待機中';
+      el.className = 'work-badge ' + (isWorking ? 'working' : 'idle');
+    }
+
+    function updateWorkStateFromLatest(arr){
+      try{
+        const dist = Array.isArray(arr) ? arr.find(r => r.metric === 'distance_ultrasonic') : null;
+        const v = dist ? Number(dist.value) : NaN;
+        setWorkBadge(Number.isFinite(v) && v <= 20);
+      }catch(_e){ /* noop */ }
     }
 
     function makeCSV(series){
@@ -975,6 +1064,11 @@
         renderTable(filtered);
         window.__lastSeries = filtered;
         setStatus(`series ok (${filtered.length} points)`, 'success');
+        // series からも作業ステータスを概算更新（最新時刻の距離）
+        const lastDist = filtered
+          .filter(r => r.metric === 'distance_ultrasonic')
+          .sort((a,b) => new Date(b.ts) - new Date(a.ts))[0];
+        if (lastDist) setWorkBadge(Number(lastDist.value) <= 20);
       }catch(e){
         console.error('series error', e);
         setStatus('series error', 'error');
