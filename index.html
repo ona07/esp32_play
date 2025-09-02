@@ -848,45 +848,54 @@
       }
     });
 
-    const distanceThresholdPlugin = {
-      id: 'distanceThreshold',
-      afterDraw(chart) {
-        const { ctx, chartArea, scales } = chart;
-        if (!chartArea || !scales?.y) return;
-        const { left, right, top, bottom } = chartArea;
-        const y = scales.y;
-        const y20 = y.getPixelForValue(20);
-        ctx.save();
-        // Shade zone under 20cm
-        ctx.fillStyle = 'rgba(220, 53, 69, 0.08)';
-        ctx.fillRect(left, y20, right - left, bottom - y20);
-        // Threshold line at 20cm
-        ctx.strokeStyle = '#dc3545';
-        ctx.setLineDash([6, 6]);
-        ctx.beginPath();
-        ctx.moveTo(left, y20);
-        ctx.lineTo(right, y20);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        // Label
-        ctx.fillStyle = '#dc3545';
-        ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
-        ctx.fillText('20 cm', left + 8, y20 - 6);
-        ctx.restore();
-      }
-    };
-
     const chartDist = new Chart(distCtx, {
-      ...baseChartOptions,
-      plugins: [distanceThresholdPlugin],
+      type: 'bar',
+      data: { datasets: [] },
       options: {
-        ...baseChartOptions.options,
+        responsive: true,
+        maintainAspectRatio: false,
+        parsing: false,
+        indexAxis: 'y',
         scales: {
-          ...baseChartOptions.options.scales,
-          y: { 
-            ...baseChartOptions.options.scales.y,
-            title: { display: true, text: 'Distance (cm)', color: '#9aa4b2' }
+          x: {
+            type: 'time',
+            time: {
+              tooltipFormat: 'HH:mm',
+              displayFormats: { minute: 'HH:mm', hour: 'HH:mm' }
+            },
+            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+          },
+          y: {
+            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+            ticks: { color: '#9aa4b2' }
           }
+        },
+        plugins: {
+          legend: {
+            display: true,
+            labels: { color: '#e6edf3', usePointStyle: true, padding: 20 }
+          },
+          tooltip: {
+            backgroundColor: 'rgba(18, 20, 26, 0.95)',
+            titleColor: '#e6edf3',
+            bodyColor: '#e6edf3',
+            borderColor: '#232733',
+            borderWidth: 1,
+            cornerRadius: 8,
+            displayColors: true,
+            callbacks: {
+              label: (ctx) => {
+                const v = ctx.raw && Array.isArray(ctx.raw.x) ? ctx.raw.x : null;
+                if(!v) return '';
+                const [s, e] = v;
+                const durMin = Math.max(0, Math.round((e - s)/60000));
+                return `${ctx.dataset.label}: ${durMin}分`;
+              }
+            }
+          }
+        },
+        elements: {
+          bar: { borderWidth: 0, borderSkipped: false, barPercentage: 1.0, categoryPercentage: 1.0 }
         }
       }
     });
@@ -963,7 +972,50 @@
 
       chartTH.data.datasets = thDatasets;
       chartTH.update();
-      chartDist.data.datasets = distDatasets;
+
+      // Update work status bar (today timeline)
+      updateWorkBar(groups.distance_ultrasonic);
+    }
+
+    function getTodayRange(){
+      const now = new Date();
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0,0,0,0);
+      const end = new Date(start.getTime() + 24*3600*1000);
+      return { start, end };
+    }
+
+    function updateWorkBar(distancePoints){
+      const { start, end } = getTodayRange();
+      // ensure x range fixed to today
+      chartDist.options.scales.x.min = start.getTime();
+      chartDist.options.scales.x.max = end.getTime();
+      chartDist.options.scales.y.type = 'category';
+
+      // Build segments from points (assumes points sorted by time)
+      const pts = Array.isArray(distancePoints) ? distancePoints.slice().sort((a,b)=>a.x-b.x) : [];
+      const working = [];
+      const away = [];
+      let prevT = start.getTime();
+      let prevState = false; // assume away until first point
+      for(const p of pts){
+        const t = Math.max(start.getTime(), Math.min(end.getTime(), p.x));
+        if(t > prevT){
+          const seg = { y: '本日', x: [prevT, t] };
+          (prevState ? working : away).push(seg);
+        }
+        prevState = (typeof p.y === 'number') ? (p.y <= 20) : prevState;
+        prevT = t;
+        if(prevT >= end.getTime()) break;
+      }
+      if(prevT < end.getTime()){
+        const seg = { y: '本日', x: [prevT, end.getTime()] };
+        (prevState ? working : away).push(seg);
+      }
+
+      chartDist.data.datasets = [
+        { label: '作業中', data: working, backgroundColor: '#22c55e' },
+        { label: '離席中', data: away, backgroundColor: '#64748b' }
+      ];
       chartDist.update();
     }
 
