@@ -556,6 +556,11 @@
     <!-- 作業ステータス（横幅いっぱい、上部配置） -->
     <section class="panel workwide" style="margin-top:12px;">
       <h3 style="margin:0 0 16px; font-size:16px;">作業ステータス</h3>
+      <div class="btnrow" style="margin-bottom:8px; align-items:center; gap:8px;">
+        <button id="workPrevBtn" class="secondary">◀ 前日</button>
+        <span id="workDayLabel" class="env">--</span>
+        <button id="workNextBtn" class="secondary">翌日 ▶</button>
+      </div>
       <div class="btnrow" style="margin-bottom:8px; align-items: center; gap: 12px;">
         <div id="workBadge" class="work-badge idle">離席中</div>
         <div id="workDistance" class="work-distance">-- cm</div>
@@ -977,22 +982,28 @@
       updateWorkBar(groups.distance_ultrasonic);
     }
 
-    function getTodayRange(){
-      const now = new Date();
-      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0,0,0,0);
-      const end = new Date(start.getTime() + 24*3600*1000);
-      return { start, end };
+    let workDayStart = null;
+    function getDayStart(d){ const t = new Date(d); t.setHours(0,0,0,0); return t; }
+    function ensureWorkDayInit(){ if(!workDayStart) workDayStart = getDayStart(new Date()); }
+    function getWorkRange(){ ensureWorkDayInit(); const start = new Date(workDayStart); const end = new Date(start.getTime()+24*3600*1000); return { start, end }; }
+    function setWorkDayLabel(){ ensureWorkDayInit(); const el = document.getElementById('workDayLabel'); if(el) el.textContent = workDayStart.toLocaleDateString('ja-JP'); }
+
+    function getDistancePointsFromLastSeries(){
+      const rows = Array.isArray(window.__lastSeries) ? window.__lastSeries : [];
+      return rows.filter(r=>r.metric==='distance_ultrasonic').map(r=>({ x: new Date(r.ts).getTime(), y: Number(r.value) })).filter(p=>Number.isFinite(p.y));
     }
 
     function updateWorkBar(distancePoints){
-      const { start, end } = getTodayRange();
+      const { start, end } = getWorkRange();
+      setWorkDayLabel();
+      const ptsSrc = Array.isArray(distancePoints) && distancePoints.length ? distancePoints : getDistancePointsFromLastSeries();
       // ensure x range fixed to today
       chartDist.options.scales.x.min = start.getTime();
       chartDist.options.scales.x.max = end.getTime();
       chartDist.options.scales.y.type = 'category';
 
       // Build segments from points (assumes points sorted by time)
-      const pts = Array.isArray(distancePoints) ? distancePoints.slice().sort((a,b)=>a.x-b.x) : [];
+      const pts = Array.isArray(ptsSrc) ? ptsSrc.slice().sort((a,b)=>a.x-b.x) : [];
       const working = [];
       const away = [];
       let prevT = start.getTime();
@@ -1313,6 +1324,18 @@
     $('#autoRefresh').addEventListener('change', setupAuto);
     // interval selector removed
 
+    // Work status day navigation
+    document.getElementById('workPrevBtn')?.addEventListener('click', ()=>{
+      ensureWorkDayInit();
+      workDayStart = new Date(workDayStart.getTime() - 24*3600*1000);
+      updateWorkBar();
+    });
+    document.getElementById('workNextBtn')?.addEventListener('click', ()=>{
+      ensureWorkDayInit();
+      workDayStart = new Date(workDayStart.getTime() + 24*3600*1000);
+      updateWorkBar();
+    });
+
     
 
     // ===== Mobile Enhancement =====
@@ -1386,6 +1409,10 @@
       savePrefs();
       console.log('Preferences saved');
       
+      // Setup work day label
+      ensureWorkDayInit();
+      setWorkDayLabel();
+
       // 初回のみ: Latest + Series を読み込み（以後 Series は手動）
       loadLatest();
       loadSeries();
