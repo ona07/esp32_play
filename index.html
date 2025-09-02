@@ -1045,7 +1045,7 @@
 
       // ensure x range fixed to selected day
       chartDist.options.scales.x.min = startMs;
-      chartDist.options.scales.x.max = visEndMs;
+      chartDist.options.scales.x.max = endMs;
       chartDist.options.scales.y.type = 'category';
       // label with selected day
       const dayLabel = workDayStart ? workDayStart.toLocaleDateString('ja-JP') : '本日';
