@@ -1037,10 +1037,15 @@
       const ptsSrc = Array.isArray(distancePoints) && distancePoints.length ? distancePoints : getDistancePointsFromLastSeries();
       const startMs = start.getTime();
       const endMs = end.getTime();
+      // If the selected day is today, only paint up to "now"
+      const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+      const isToday = workDayStart && (workDayStart.getTime() === todayStart.getTime());
+      const nowMs = Date.now();
+      const visEndMs = isToday ? Math.max(startMs, Math.min(endMs, nowMs)) : endMs;
 
       // ensure x range fixed to selected day
       chartDist.options.scales.x.min = startMs;
-      chartDist.options.scales.x.max = endMs;
+      chartDist.options.scales.x.max = visEndMs;
       chartDist.options.scales.y.type = 'category';
       // label with selected day
       const dayLabel = workDayStart ? workDayStart.toLocaleDateString('ja-JP') : '本日';
@@ -1061,11 +1066,11 @@
       let segStart = startMs;
       for (const p of pts) {
         if (p.x < startMs) continue; // ignore before day
-        if (p.x >= endMs) break;      // stop after day
+        if (p.x >= visEndMs) break;  // stop after visible end
         const currState = (typeof p.y === 'number') && (p.y <= 20);
         if (currState !== prevState) {
           // close previous segment at this timestamp
-          const clampedT = Math.max(startMs, Math.min(endMs, p.x));
+          const clampedT = Math.max(startMs, Math.min(visEndMs, p.x));
           if (clampedT > segStart) {
             segments.push({ state: prevState, x: [segStart, clampedT] });
           }
@@ -1075,8 +1080,8 @@
         }
       }
       // close final segment to end of day
-      if (segStart < endMs) {
-        segments.push({ state: prevState, x: [segStart, endMs] });
+      if (segStart < visEndMs) {
+        segments.push({ state: prevState, x: [segStart, visEndMs] });
       }
 
       // Split into datasets
