@@ -1243,6 +1243,10 @@
     function setThWeekLabel(){ ensureThWeekInit(); const s = new Date(thWeekStart); const e = new Date(s.getTime() + 6*24*3600*1000); const el = document.getElementById('thWeekLabel'); if(el) el.textContent = `${s.toLocaleDateString('ja-JP')} 〜 ${e.toLocaleDateString('ja-JP')}`; }
 
     async function loadSeries(){
+      const btnPrev = document.getElementById('thPrevBtn');
+      const btnNext = document.getElementById('thNextBtn');
+      btnPrev && (btnPrev.disabled = true);
+      btnNext && (btnNext.disabled = true);
       document.getElementById('thLoading')?.classList.add('show');
       const base = buildBase();
       const deviceId = getSelectedDeviceId();
@@ -1257,13 +1261,11 @@
       setStatus('loading series…', 'loading'); 
       showError('');
       try{
+        console.log('[TH_FETCH] week', startISO, '->', endISO, 'metrics', selected);
+        const urls = selected.map(m => `${base}/series?device_id=${encodeURIComponent(deviceId)}&start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}&metric=${encodeURIComponent(m)}`);
+        const results = await Promise.all(urls.map(u => fetchJSON(u, null)));
         let merged = [];
-        for(const m of selected){
-          const url = `${base}/series?device_id=${encodeURIComponent(deviceId)}&start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}&metric=${encodeURIComponent(m)}`;
-          const j = await fetchJSON(url, null);
-          const arr = Array.isArray(j.data) ? j.data : [];
-          merged = merged.concat(arr);
-        }
+        results.forEach(j => { const arr = Array.isArray(j.data) ? j.data : []; merged = merged.concat(arr); });
         setDatasets(merged, selected);
         // Fix x-range to selected week
         chartTH.options.scales.x.min = start.getTime();
@@ -1279,6 +1281,8 @@
         showError(`時系列データの取得に失敗しました。原因例: device_id 不一致 / ネットワーク / URL / サーバ停止 / CORS（サーバ側で許可が必要）。\n詳細: ${e instanceof DOMException ? e.name : e.message}${tip}`);
       }
       document.getElementById('thLoading')?.classList.remove('show');
+      btnPrev && (btnPrev.disabled = false);
+      btnNext && (btnNext.disabled = false);
     }
 
     // ===== Removed legacy helpers (ping/self-test) =====
@@ -1399,16 +1403,20 @@
     });
 
     // Temp/Humidity week navigation
-    document.getElementById('thPrevBtn')?.addEventListener('click', ()=>{
+    document.getElementById('thPrevBtn')?.addEventListener('click', (e)=>{
+      e.preventDefault();
       ensureThWeekInit();
       thWeekStart = new Date(thWeekStart.getTime() - 7*24*3600*1000);
       setThWeekLabel();
+      console.log('[TH_NAV] prev week ->', thWeekStart);
       loadSeries();
     });
-    document.getElementById('thNextBtn')?.addEventListener('click', ()=>{
+    document.getElementById('thNextBtn')?.addEventListener('click', (e)=>{
+      e.preventDefault();
       ensureThWeekInit();
       thWeekStart = new Date(thWeekStart.getTime() + 7*24*3600*1000);
       setThWeekLabel();
+      console.log('[TH_NAV] next week ->', thWeekStart);
       loadSeries();
     });
     document.getElementById('workNextBtn')?.addEventListener('click', ()=>{
