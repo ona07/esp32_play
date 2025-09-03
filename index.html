@@ -482,7 +482,9 @@
 
     /* Top layout: Config + Latest */
     .top-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
-    @media (min-width: 980px) { .top-grid { grid-template-columns: 1.4fr 1fr; align-items: start; } }
+    @media (min-width: 980px) { .top-grid { grid-template-columns: 1.4fr 1fr; align-items: stretch; } }
+    .top-grid > .panel { display: flex; flex-direction: column; }
+    #latestPanel .cards { flex: 1 1 auto; overflow: auto; }
 
     /* Config actions bar */
     .actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
@@ -592,17 +594,7 @@
       </div>
     </section>
 
-    <section class="panel" style="margin-top:12px;">
-      <h3 style="margin:0 0 16px; font-size:16px;">Series Table</h3>
-      <div class="table-container">
-        <table id="seriesTable">
-          <thead>
-            <tr><th>時刻</th><th>メトリック</th><th>値</th><th>メタデータ</th></tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </section>
+    
 
     <div class="footer">表示時刻はブラウザのローカルタイムゾーンで表示されます（JST推奨）。</div>
   </div>
@@ -1100,27 +1092,7 @@
       chartDist.update();
     }
 
-    function renderTable(series){
-      const tbody = $('#seriesTable tbody');
-      tbody.innerHTML = '';
-      const rows = series.map(r => {
-        const tr = document.createElement('tr');
-        const metaTxt = r.meta ? JSON.stringify(r.meta) : '';
-        const date = new Date(r.ts);
-        const formattedDate = `${date.toLocaleDateString('ja-JP')} ${date.toLocaleTimeString('ja-JP')}`;
-        const metricName = fmtMetric(r.metric);
-        const formattedValue = fmtValue(r.metric, Number(r.value));
-        
-        tr.innerHTML = `
-          <td>${formattedDate}</td>
-          <td><span style="color: var(--accent); font-weight: 600;">${metricName}</span></td>
-          <td><strong>${formattedValue}</strong></td>
-          <td><code style="font-size: 11px; color: var(--muted);">${metaTxt}</code></td>
-        `;
-        return tr;
-      });
-      rows.forEach(tr => tbody.appendChild(tr));
-    }
+    // Series Table removed
 
     function renderLatest(cards){
       const wrap = $('#latestCards');
@@ -1270,7 +1242,6 @@
         // Fix x-range to selected week
         chartTH.options.scales.x.min = start.getTime();
         chartTH.options.scales.x.max = end.getTime();
-        renderTable(merged);
         window.__lastSeries = merged;
         setStatus(`series ok (${merged.length} points)`, 'success');
       }catch(e){
@@ -1384,12 +1355,10 @@
 
     $('#dlCsvBtn').addEventListener('click', ()=>{
       const rows = window.__lastSeries || [];
-      if(!rows.length){ alert('📄 データがありません'); return; }
       const csv = makeCSV(rows);
       const deviceId = getSelectedDeviceId() || 'device';
       const deviceName = deviceId.length > 10 ? deviceId.substring(0, 8) : deviceId;
       download(`series_${deviceName}.csv`, csv);
-      alert('📥 CSVファイルをダウンロードしました！');
     });
 
     $('#autoRefresh').addEventListener('change', setupAuto);
