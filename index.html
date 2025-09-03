@@ -145,8 +145,9 @@
       padding: 18px; border: 1px solid var(--work-green); border-radius: 12px;
       background: rgba(34, 197, 94, 0.12);
       color: var(--work-green);
-      font-size: 28px; font-weight: 900; letter-spacing: .6px;
+      font-size: clamp(18px, 2.2vw, 28px); font-weight: 900; letter-spacing: .6px;
       text-align: center;
+      white-space: nowrap; line-height: 1;
       animation: heroPulse 1.8s ease-in-out infinite;
     }
     @keyframes heroPulse {
