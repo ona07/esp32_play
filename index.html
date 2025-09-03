@@ -139,6 +139,22 @@
       100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
     }
 
+    /* Big animated Working label for latest card */
+    .working-hero {
+      display: flex; align-items: center; justify-content: center;
+      padding: 18px; border: 1px solid var(--work-green); border-radius: 12px;
+      background: rgba(34, 197, 94, 0.12);
+      color: var(--work-green);
+      font-size: 28px; font-weight: 900; letter-spacing: .6px;
+      text-align: center;
+      animation: heroPulse 1.8s ease-in-out infinite;
+    }
+    @keyframes heroPulse {
+      0% { box-shadow: 0 0 0 0 rgba(34,197,94,0.0); }
+      50% { box-shadow: 0 0 20px 0 rgba(34,197,94,0.45); }
+      100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.0); }
+    }
+
     .panel { 
       background: var(--panel); 
       border: 1px solid var(--border); 
@@ -1128,21 +1144,11 @@
         const dist = cards.find(r => r.metric === 'distance_ultrasonic');
         if (dist){ distVal = Number(dist.value); distTs = dist.ts; isWorking = Number.isFinite(distVal) && distVal <= 20; }
       }
-      if (isWorking !== null){
+      if (isWorking === true){
         const card = document.createElement('div');
         card.className = 'card';
-        const label = isWorking ? '作業中' : '離席中';
-        const tsTxt = distTs ? new Date(distTs).toLocaleString() : '';
-        card.innerHTML = `
-          <div class="metric">作業ステータス</div>
-          <div style="margin-top:8px;">
-            <div id="latestWorkBadge" class="work-badge ${isWorking ? 'working' : 'idle'}">${label}</div>
-          </div>
-          <div class="timestamp">${tsTxt ? `⏰ ${tsTxt}` : ''}</div>
-        `;
+        card.innerHTML = `<div class="working-hero">作業中</div>`;
         wrap.appendChild(card);
-        // Update external badges/values if present
-        setWorkBadge(!!isWorking);
         if (Number.isFinite(distVal)) setWorkDistance(distVal);
       }
 
