@@ -870,8 +870,54 @@
       }
     };
 
+    // Day separator plugin for weekly TH chart
+    const daySeparatorPlugin = {
+      id: 'daySeparator',
+      beforeDraw(chart, args, opts){
+        const { ctx, chartArea, scales } = chart;
+        const x = scales?.x; if(!chartArea || !x) return;
+        const min = x.min, max = x.max; if(min==null || max==null) return;
+        const msDay = 24*3600*1000;
+        const d0 = new Date(min);
+        const startMid = new Date(d0.getFullYear(), d0.getMonth(), d0.getDate()).getTime();
+        const theme = document.documentElement.getAttribute('data-theme') || '';
+        const cs = getComputedStyle(document.documentElement);
+        const borderCol = cs.getPropertyValue('--border').trim() || '#94a3b8';
+        const shadeCol = (theme === 'light') ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.04)';
+        ctx.save();
+        let i = 0;
+        for(let t = startMid; t <= max + msDay; t += msDay, i++){
+          const px = x.getPixelForValue(t);
+          // vertical day line
+          ctx.strokeStyle = borderCol;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(px, chartArea.top);
+          ctx.lineTo(px, chartArea.bottom);
+          ctx.stroke();
+          // alternating day shading
+          const t2 = Math.min(t + msDay, max);
+          const px2 = x.getPixelForValue(t2);
+          if(i % 2 === 1){
+            ctx.fillStyle = shadeCol;
+            ctx.fillRect(px, chartArea.top, px2 - px, chartArea.bottom - chartArea.top);
+          }
+          // optional label
+          if(opts?.showLabel){
+            const dd = new Date(t);
+            const label = `${String(dd.getMonth()+1).padStart(2,'0')}/${String(dd.getDate()).padStart(2,'0')}`;
+            ctx.fillStyle = cs.getPropertyValue('--muted').trim() || '#9aa4b2';
+            ctx.font = '12px Inter, system-ui, -apple-system, Segoe UI, Roboto';
+            ctx.fillText(label, px + 4, chartArea.top + 12);
+          }
+        }
+        ctx.restore();
+      }
+    };
+
     const chartTH = new Chart(thCtx, {
       ...baseChartOptions,
+      plugins: [daySeparatorPlugin],
       options: {
         ...baseChartOptions.options,
         scales: {
