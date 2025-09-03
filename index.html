@@ -1247,21 +1247,21 @@
         const dist = cards.find(r => r.metric === 'distance_ultrasonic');
         if (dist){ distVal = Number(dist.value); distTs = dist.ts; isWorking = Number.isFinite(distVal) && distVal <= 20; }
       }
-      if (isWorking !== null){
-        // Always reflect status to the header badge
-        setWorkBadge(!!isWorking);
-      }
-      if (isWorking === true){
+      // Reflect status to header badge if present
+      if (isWorking !== null) setWorkBadge(!!isWorking);
+      // Always show a status card; default to 離席中 when distance is missing
+      if (isWorking === null) isWorking = false;
+      {
         const card = document.createElement('div');
-        card.className = 'card working-card';
-        card.innerHTML = `<div class="working-hero">作業中</div>`;
+        if (isWorking) {
+          card.className = 'card working-card';
+          card.innerHTML = `<div class="working-hero">作業中</div>`;
+        } else {
+          card.className = 'card away-card';
+          card.innerHTML = `<div class="away-hero">離席中</div>`;
+        }
         wrap.appendChild(card);
         if (Number.isFinite(distVal)) setWorkDistance(distVal);
-      } else if (isWorking === false){
-        const card = document.createElement('div');
-        card.className = 'card away-card';
-        card.innerHTML = `<div class="away-hero">離席中</div>`;
-        wrap.appendChild(card);
       }
 
       const onlyTH = Array.isArray(cards) ? cards.filter(r => r.metric==='temperature' || r.metric==='humidity') : [];
