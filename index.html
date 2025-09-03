@@ -352,6 +352,7 @@
       height: 400px;
       width: 100%;
     }
+    .chart-container.work { height: 140px; }
     
     canvas { 
       width: 100% !important; 
@@ -518,14 +519,7 @@
           <input id="deviceIdCustom" type="text" placeholder="カスタムDevice ID (UUID)" style="display: none; margin-top: 8px;" />
           <div class="hint">プリセットデバイスを選択するか、カスタム入力でUUIDを指定できます。</div>
         </div>
-        <div>
-          <label>Start (local)</label>
-          <input id="startAt" type="datetime-local" />
-        </div>
-        <div>
-          <label>End (local)</label>
-          <input id="endAt" type="datetime-local" />
-        </div>
+        
         <div>
           <label>Metrics</label>
           <div class="metric-checks">
@@ -559,22 +553,26 @@
         <div id="workBadge" class="work-badge idle">離席中</div>
         <div id="workDistance" class="work-distance">-- cm</div>
       </div>
-      <div class="chart-container" style="margin-top:8px;">
+      <div class="chart-container work" style="margin-top:8px;">
         <canvas id="chartDist"></canvas>
       </div>
     </section>
 
     <div class="grid">
       <section class="panel">
-        <h3 style="margin:0 0 16px; font-size:16px;">Latest</h3>
-        <div class="cards" id="latestCards"><!-- cards injected here --></div>
-      </section>
-
-      <section class="panel">
         <h3 style="margin:0 0 16px; font-size:16px;">温度・湿度</h3>
+        <div class="btnrow" style="margin-bottom:8px; align-items:center; gap:8px;">
+          <button id="thPrevBtn" class="secondary">◀ 先週</button>
+          <span id="thWeekLabel" class="env">-- 週</span>
+          <button id="thNextBtn" class="secondary">翌週 ▶</button>
+        </div>
         <div class="chart-container">
           <canvas id="chartTH"></canvas>
         </div>
+      </section>
+      <section class="panel">
+        <h3 style="margin:0 0 16px; font-size:16px;">Latest</h3>
+        <div class="cards" id="latestCards"><!-- cards injected here --></div>
       </section>
     </div>
 
@@ -725,8 +723,6 @@
         apiBaseCustom: $('#apiBaseCustom')?.value?.trim(),
         deviceSelect: $('#deviceSelect').value,
         deviceIdCustom: $('#deviceIdCustom').value.trim(),
-        startAt: $('#startAt').value,
-        endAt: $('#endAt').value,
         metrics: $$('.metricChk').filter(c=>c.checked).map(c=>c.value),
         auto: $('#autoRefresh').checked,
         // interval selection removed; fixed interval used in code
@@ -745,8 +741,6 @@
         updateApiBaseDisplay();
         if(p.deviceSelect) $('#deviceSelect').value = p.deviceSelect;
         if(p.deviceIdCustom) $('#deviceIdCustom').value = p.deviceIdCustom;
-        if(p.startAt) $('#startAt').value = p.startAt;
-        if(p.endAt) $('#endAt').value = p.endAt;
         if(Array.isArray(p.metrics)) $$('.metricChk').forEach(c=> c.checked = p.metrics.includes(c.value));
         if(typeof p.auto==='boolean') $('#autoRefresh').checked = p.auto;
         // interval preference removed
@@ -1223,12 +1217,20 @@
       }
     }
 
+    // ===== Temp/Humidity weekly view =====
+    let thWeekStart = null;
+    function getWeekStart(d){ const t = new Date(d); const dow = t.getDay(); t.setHours(0,0,0,0); t.setDate(t.getDate() - dow); return t; } // Sunday start
+    function ensureThWeekInit(){ if(!thWeekStart){ thWeekStart = getWeekStart(new Date()); } }
+    function getThWeekRange(){ ensureThWeekInit(); const s = new Date(thWeekStart); const e = new Date(s.getTime() + 7*24*3600*1000); return { start:s, end:e }; }
+    function setThWeekLabel(){ ensureThWeekInit(); const s = new Date(thWeekStart); const e = new Date(s.getTime() + 6*24*3600*1000); const el = document.getElementById('thWeekLabel'); if(el) el.textContent = `${s.toLocaleDateString('ja-JP')} 〜 ${e.toLocaleDateString('ja-JP')}`; }
+
     async function loadSeries(){
       const base = buildBase();
       const deviceId = getSelectedDeviceId();
       if(!deviceId){ showError('Device ID を選択または入力してください'); return; }
-      const startISO = toISOZFromLocalInput($('#startAt').value);
-      const endISO = toISOZFromLocalInput($('#endAt').value);
+      const { start, end } = getThWeekRange();
+      const startISO = start.toISOString();
+      const endISO = end.toISOString();
       // seriesでは超音波を取得しない（温度・湿度のみ）
       const selected = $$('.metricChk').filter(c=>c.checked).map(c=>c.value).filter(m=> m==='temperature' || m==='humidity');
       if(!startISO || !endISO){ setStatus('start/end未設定', 'error'); return; }
@@ -1244,6 +1246,9 @@
           merged = merged.concat(arr);
         }
         setDatasets(merged, selected);
+        // Fix x-range to selected week
+        chartTH.options.scales.x.min = start.getTime();
+        chartTH.options.scales.x.max = end.getTime();
         renderTable(merged);
         window.__lastSeries = merged;
         setStatus(`series ok (${merged.length} points)`, 'success');
@@ -1372,6 +1377,20 @@
       workDayStart = new Date(workDayStart.getTime() - 24*3600*1000);
       loadWorkStatusDay();
     });
+
+    // Temp/Humidity week navigation
+    document.getElementById('thPrevBtn')?.addEventListener('click', ()=>{
+      ensureThWeekInit();
+      thWeekStart = new Date(thWeekStart.getTime() - 7*24*3600*1000);
+      setThWeekLabel();
+      loadSeries();
+    });
+    document.getElementById('thNextBtn')?.addEventListener('click', ()=>{
+      ensureThWeekInit();
+      thWeekStart = new Date(thWeekStart.getTime() + 7*24*3600*1000);
+      setThWeekLabel();
+      loadSeries();
+    });
     document.getElementById('workNextBtn')?.addEventListener('click', ()=>{
       ensureWorkDayInit();
       workDayStart = new Date(workDayStart.getTime() + 24*3600*1000);
@@ -1420,10 +1439,9 @@
       }
       updateDeviceDisplay();
       
-      const now = new Date();
-      const start = new Date(now.getTime() - 6*3600*1000);
-      $('#endAt').value = fromDateToLocalInputValue(now);
-      $('#startAt').value = fromDateToLocalInputValue(start);
+      // 温湿度の週表示ラベル
+      ensureThWeekInit();
+      setThWeekLabel();
       $('#originTxt').textContent = location.origin || 'null';
       
       // file:// で開いたら警告
