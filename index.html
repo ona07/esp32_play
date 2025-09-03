@@ -1239,9 +1239,10 @@
         let merged = [];
         results.forEach(j => { const arr = Array.isArray(j.data) ? j.data : []; merged = merged.concat(arr); });
         setDatasets(merged, selected);
-        // Fix x-range to selected week
+        // Fix x-range to selected week and re-render
         chartTH.options.scales.x.min = start.getTime();
         chartTH.options.scales.x.max = end.getTime();
+        chartTH.update();
         window.__lastSeries = merged;
         setStatus(`series ok (${merged.length} points)`, 'success');
       }catch(e){
