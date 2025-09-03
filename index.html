@@ -502,6 +502,9 @@
     .actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
     .actions .left { display: flex; gap: 8px; flex-wrap: wrap; }
     .actions .right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+    /* Panel heading with right-aligned badge */
+    .panel-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 12px; }
+    .panel-title h3 { margin: 0; font-size: 16px; }
 
     /* Config controls layout override to allow wider inputs */
     #config .controls { display: grid; grid-template-columns: 1fr; gap: 12px; }
@@ -570,8 +573,8 @@
         <div id="errorBox" class="errorbox"></div>
       </section>
       <section class="panel" id="latestPanel">
-        <h3 style="margin:0 0 16px; font-size:16px;">最新</h3>
-        <div class="btnrow" style="margin-bottom:8px; align-items:center; gap:8px;">
+        <div class="panel-title">
+          <h3>最新</h3>
           <div id="latestWorkBadge" class="work-badge idle">離席中</div>
         </div>
         <div class="cards" id="latestCards"><!-- cards injected here --></div>
