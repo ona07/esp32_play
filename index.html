@@ -479,6 +479,16 @@
     .card {
       animation: fadeInUp 0.6s ease-out;
     }
+
+    /* Config + Latest side-by-side */
+    .config-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+    @media (min-width: 980px) {
+      .config-grid { grid-template-columns: 1.4fr 1fr; align-items: start; }
+    }
   </style>
 </head>
 <body>
@@ -495,7 +505,9 @@
     </header>
 
     <section class="panel" id="config">
-      <div class="controls">
+      <div class="config-grid">
+        <div class="config-left">
+          <div class="controls">
         <div>
           <label>API Base</label>
           <select id="apiBaseSelect">
@@ -527,17 +539,22 @@
             <label><input type="checkbox" class="metricChk" value="humidity" checked> 湿度</label>
           </div>
         </div>
-        
+          </div>
+          <div class="btnrow" style="margin-top:12px;">
+            <button id="loadBtn">読み込む</button>
+            <button id="latestBtn" class="ghost">最新を更新</button>
+            <button id="dlCsvBtn" class="ghost">CSVダウンロード</button>
+            <label style="margin-left:auto; display:flex; align-items:center; gap:8px;">
+              <input id="autoRefresh" type="checkbox"> 自動更新（Latestのみ）
+            </label>
+          </div>
+          <div id="errorBox" class="errorbox"></div>
+        </div>
+        <div class="config-right">
+          <h3 style="margin:0 0 16px; font-size:16px;">Latest</h3>
+          <div class="cards" id="latestCards"><!-- cards injected here --></div>
+        </div>
       </div>
-      <div class="btnrow" style="margin-top:12px;">
-        <button id="loadBtn">読み込む</button>
-        <button id="latestBtn" class="ghost">最新を更新</button>
-        <button id="dlCsvBtn" class="ghost">CSVダウンロード</button>
-        <label style="margin-left:auto; display:flex; align-items:center; gap:8px;">
-          <input id="autoRefresh" type="checkbox"> 自動更新（Latestのみ）
-        </label>
-      </div>
-      <div id="errorBox" class="errorbox"></div>
       
     </section>
 
@@ -569,10 +586,6 @@
         <div class="chart-container">
           <canvas id="chartTH"></canvas>
         </div>
-      </section>
-      <section class="panel">
-        <h3 style="margin:0 0 16px; font-size:16px;">Latest</h3>
-        <div class="cards" id="latestCards"><!-- cards injected here --></div>
       </section>
     </div>
 
