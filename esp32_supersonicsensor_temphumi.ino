@@ -23,7 +23,7 @@ const char* API_KEY   = "REPLACE_WITH_DEVICE_API_KEY";     // サーバの devic
 static const unsigned long PULSE_TIMEOUT_US   = 30000UL;
 static const unsigned long DHT_MIN_INTERVALMS = 2000UL;  // DHT11は>=1s推奨（読み取り間隔の下限）
 static const unsigned long LOOP_INTERVAL_MS   = 500UL;   // 距離更新周期
-static const unsigned long PERIODIC_SEND_MS   = 30000UL; // 予備: 未同期時の簡易間隔（30s）
+// static const unsigned long PERIODIC_SEND_MS   = 30000UL; // 未使用: 未同期フォールバックは行わない
 static const float DIST_WORK_THRESHOLD_CM     = 20.0f;    // 作業中の閾値
 static const float DEFAULT_TEMP_C = 20.0f;
 
@@ -42,6 +42,7 @@ const long GMT_OFFSET_SEC = 9 * 3600;   // JST (+09:00) に合わせる（環境
 const int  DAYLIGHT_OFFSET_SEC = 0;
 bool timeIsSynced = false;
 long lastPeriodicSlot = -1; // 30分スロット単位の最終送信スロット
+unsigned long lastTimeSyncAttemptMs = 0; // ループ内での再同期トライ用
 
 // ---- Helpers ----
 String jsonEscape(const String &s) {
@@ -172,7 +173,7 @@ void setup() {
       time_t nowEpoch = time(nullptr);
       lastPeriodicSlot = (nowEpoch >= 0) ? (nowEpoch / 1800) : -1;
     } else {
-      Serial.println("Time sync failed; fallback to interval timer");
+      Serial.println("Time sync failed; will retry periodically and only send on 00/30 once synced");
     }
   } else {
     Serial.println("WiFi connect timeout");
@@ -229,7 +230,21 @@ void loop() {
       lastWorkState = working;
     }
 
-    // 2) 定期送信（00分 / 30分）
+    // 2) 定期送信（00分 / 30分のみ）
+    //    未同期時は一切送信しない。ループ内で定期的に再同期を試みる。
+    //    同期が成功したら、その時点のスロットを記録して重複送信を防ぐ。
+    // 再同期トライ
+    if (!timeIsSynced && (millis() - lastTimeSyncAttemptMs >= 5000UL)) {
+      struct tm tmInfo;
+      if (getLocalTime(&tmInfo, 1000)) {
+        timeIsSynced = true;
+        time_t nowEpoch = time(nullptr);
+        lastPeriodicSlot = (nowEpoch > 0) ? (nowEpoch / 1800) : -1;
+        Serial.println("Time synced (retry): periodic sends will align to 00/30.");
+      }
+      lastTimeSyncAttemptMs = millis();
+    }
+
     bool shouldSendPeriodic = false;
     if (timeIsSynced) {
       time_t nowEpoch = time(nullptr);
@@ -240,13 +255,6 @@ void loop() {
           shouldSendPeriodic = true;
           lastPeriodicSlot = slot;
         }
-      }
-    } else {
-      // 時刻未同期時は予備の一定間隔で送信
-      static unsigned long lastPeriodicSendMs = 0;
-      if (millis() - lastPeriodicSendMs >= PERIODIC_SEND_MS) {
-        shouldSendPeriodic = true;
-        lastPeriodicSendMs = millis();
       }
     }
 

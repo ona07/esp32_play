@@ -1372,6 +1372,11 @@
         renderLatest(j.data || []);
         setStatus('最新 OK', 'success');
       }catch(e){
+        // Abort は正常系。エラー表示は出さない。
+        if (e && (e.name === 'AbortError' || e.code === 20)) {
+          console.debug('latest aborted');
+          return;
+        }
         console.error('latest error', e);
         setStatus('最新 エラー', 'error');
         const isFile = location.protocol === 'file:' || location.origin === 'null';
