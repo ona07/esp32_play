@@ -1272,8 +1272,8 @@
       }
     }
 
-    // ===== Ping & Self-Test =====
-    async function pingApi(){
+    // ===== Removed legacy helpers (ping/self-test) =====
+    /* async function pingApi(){
       const base = buildBase();
       const deviceId = getSelectedDeviceId();
       if(!deviceId){ 
@@ -1294,9 +1294,9 @@
         setStatus('ping error', 'error');
         showError(`❌ Ping失敗。CORS または到達性の問題の可能性。\n- サーバ側で CORS を有効化してください。\nOrigin: ${location.origin || 'null'}`);
       }
-    }
+    } */
 
-    function selfTests(){
+    /* function selfTests(){
       const results = [];
       const assert = (name, cond) => results.push({ name, pass: !!cond });
 
@@ -1341,7 +1341,7 @@
       const fail = results.length - pass;
       console.table(results);
       alert(`🧪 Self-Test: ${pass} passed, ${fail} failed\n\n${results.map(r => `${r.pass ? '✅' : '❌'} ${r.name}`).join('\n')}`);
-    }
+    } */
 
     // ===== Auto refresh (Latest only) =====
     let autoTimer = null;
