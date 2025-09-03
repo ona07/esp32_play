@@ -8,29 +8,31 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <style>
     :root {
-      --bg: #0b0c0f;
-      --panel: #12141a;
-      --muted: #9aa4b2;
-      --text: #e6edf3;
-      --accent: #4f8cff;
-      --card: #171a21;
-      --border: #232733;
-      --success: #28a745;
-      --warning: #ffc107;
-      --danger: #dc3545;
+      /* Wafu (和風) Indigo Night */
+      --bg: #0e1320;          /* 深い藍色 */
+      --panel: #131a2a;       /* 藍の濃淡 */
+      --card: #141c2f;
+      --text: #e8e5de;        /* 和紙の白 */
+      --muted: #a9b1ba;       /* 墨の薄色 */
+      --border: #223048;      /* 藍の境界 */
+      --accent: #e6452a;      /* 朱（緋色） */
+      --success: #1fb981;     /* 若草 */
+      --warning: #f1b44c;     /* 琥珀 */
+      --danger: #dc3545;      /* 紅 */
     }
     
     :root[data-theme="light"] {
-      --bg: #fafafa; 
+      /* Wafu (和風) Light Washi */
+      --bg: #faf7f0;          /* 和紙の生成り */
       --panel: #ffffff; 
       --card: #ffffff; 
-      --text: #0a0a0a; 
-      --muted: #57606a; 
-      --border: #e5e7eb; 
-      --accent: #1f6feb;
-      --success: #198754;
-      --warning: #f0ad4e;
-      --danger: #dc3545;
+      --text: #2c2a28;        /* 墨 */
+      --muted: #6b6a67;       /* 薄墨 */
+      --border: #e6e0d6;      /* 和紙の繊維 */
+      --accent: #e6452a;      /* 朱 */
+      --success: #1a8f63;
+      --warning: #b87319;
+      --danger: #b23a48;
     }
     
     @media (prefers-color-scheme: light) {
@@ -40,7 +42,16 @@
     }
     
     html, body { height: 100%; }
-    body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, Segoe UI, Roboto, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif; transition: background-color 0.3s ease, color 0.3s ease; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 system-ui, -apple-system, Segoe UI, Roboto, "Hiragino Kaku Gothic ProN", "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", Meiryo, serif; transition: background-color 0.3s ease, color 0.3s ease; }
+    /* 和紙の質感（軽いテクスチャ） */
+    body::before {
+      content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+      background:
+        radial-gradient(circle at 1px 1px, rgba(255,255,255,0.04) 1px, transparent 1.2px) 0 0/6px 6px,
+        linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0) 60%);
+      mix-blend-mode: soft-light; opacity: .6;
+    }
+    .container, header, .panel, .card { position: relative; z-index: 1; }
     
     .container { max-width: 1100px; margin: 24px auto 80px; padding: 0 16px; }
     
@@ -52,7 +63,7 @@
       margin-bottom: 16px; 
       flex-wrap: wrap;
     }
-    header h1 { font-size: 20px; margin: 0; letter-spacing: .2px; }
+    header h1 { font-size: 20px; margin: 0; letter-spacing: .2px; font-family: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif; }
     
     .header-controls {
       display: flex;
@@ -307,7 +318,7 @@
       left: 0;
       right: 0;
       height: 3px;
-      background: linear-gradient(90deg, var(--accent), #7c3aed);
+      background: linear-gradient(90deg, var(--accent), #c084fc);
     }
     
     .metric { 
@@ -506,13 +517,13 @@
 <body>
   <div class="container">
     <header>
-      <h1>ESP32 Sensors Monitor</h1>
+      <h1>ESP32 センサー監視</h1>
       <div class="header-controls">
         <div class="theme-toggle" id="themeToggle">
           <span id="themeIcon">🌙</span>
-          <span id="themeText">Dark</span>
+          <span id="themeText">夜</span>
         </div>
-        <div id="status" class="status-badge">ready</div>
+        <div id="status" class="status-badge">準備完了</div>
       </div>
     </header>
 
@@ -521,7 +532,7 @@
         <h3 style="margin:0 0 16px; font-size:16px;">接続設定</h3>
         <div class="controls">
         <div>
-          <label>API Base</label>
+          <label>APIベース</label>
           <select id="apiBaseSelect">
             <option value="https://esp32-play.onrender.com">Render (prod)</option>
             <option value="http://localhost:8000">Local (dev)</option>
@@ -530,7 +541,7 @@
           <input id="apiBaseCustom" type="text" placeholder="https://example.com" style="display:none; margin-top:8px;" />
         </div>
         <div>
-          <label>Device ID</label>
+          <label>デバイスID</label>
           <select id="deviceSelect">
             <option value="232928c2-22a1-498d-aec0-71d0a48ee43a">🏠 Home Sensor (232928c2)</option>
             <option value="b8f3e412-9a7d-4c8f-8e2a-1b5c9d7f3e4a">🏢 Office Sensor (b8f3e412)</option>
@@ -545,20 +556,20 @@
         </div>
         <div class="actions">
           <div class="left">
-            <button id="loadBtn">読み込む</button>
-            <button id="latestBtn" class="ghost">最新を更新</button>
-            <button id="dlCsvBtn" class="ghost">CSVダウンロード</button>
+            <button id="loadBtn">読み込み</button>
+            <button id="latestBtn" class="ghost">最新更新</button>
+            <button id="dlCsvBtn" class="ghost">CSV保存</button>
           </div>
           <div class="right">
             <label style="display:flex; align-items:center; gap:8px;">
-              <input id="autoRefresh" type="checkbox"> 自動更新（Latestのみ）
+              <input id="autoRefresh" type="checkbox"> 自動更新（最新のみ）
             </label>
           </div>
         </div>
         <div id="errorBox" class="errorbox"></div>
       </section>
       <section class="panel" id="latestPanel">
-        <h3 style="margin:0 0 16px; font-size:16px;">Latest</h3>
+        <h3 style="margin:0 0 16px; font-size:16px;">最新</h3>
         <div class="cards" id="latestCards"><!-- cards injected here --></div>
       </section>
     </div>
@@ -622,11 +633,11 @@
       if (theme === 'dark') {
         root.setAttribute('data-theme', 'dark');
         themeIcon.textContent = '🌙';
-        themeText.textContent = 'Dark';
+        themeText.textContent = '夜';
       } else {
         root.setAttribute('data-theme', 'light');
         themeIcon.textContent = '☀️';
-        themeText.textContent = 'Light';
+        themeText.textContent = '昼';
       }
       
       localStorage.setItem('esp32mon:theme', theme);
@@ -844,7 +855,7 @@
           ...baseChartOptions.options.scales,
           y: { 
             ...baseChartOptions.options.scales.y,
-            title: { display: true, text: 'Temp/Humidity', color: '#9aa4b2' }
+            title: { display: true, text: '温度・湿度', color: '#9aa4b2' }
           }
         }
       }
@@ -1191,16 +1202,16 @@
       const base = buildBase();
       const deviceId = getSelectedDeviceId();
       if(!deviceId){ showError('Device ID を選択または入力してください'); return; }
-      setStatus('loading latest…', 'loading'); 
+      setStatus('最新 読み込み中…', 'loading'); 
       showError('');
       
       try{
         const j = await fetchJSON(`${base}/latest?device_id=${encodeURIComponent(deviceId)}`, 'latest');
         renderLatest(j.data || []);
-        setStatus('latest ok', 'success');
+        setStatus('最新 OK', 'success');
       }catch(e){
         console.error('latest error', e);
-        setStatus('latest error', 'error');
+        setStatus('最新 エラー', 'error');
         const isFile = location.protocol === 'file:' || location.origin === 'null';
         const tip = isFile ? '\n※ 現在 file:// から開いています。ブラウザの制約でクロスオリジンの取得が失敗する場合があります。GitHub Pages など HTTPS ホスティングから開いてください。' : '';
         showError(`最新値の取得に失敗しました。原因例: device_id 不一致 / ネットワーク / URL / サーバ停止 / CORS（サーバ側で許可が必要）。\n詳細: ${e instanceof DOMException ? e.name : e.message}${tip}`);
@@ -1230,7 +1241,7 @@
       const selected = ['temperature','humidity'];
       if(!startISO || !endISO){ setStatus('start/end未設定', 'error'); return; }
       
-      setStatus('loading series…', 'loading'); 
+      setStatus('時系列 読み込み中…', 'loading'); 
       showError('');
       try{
         console.log('[TH_FETCH] week', startISO, '->', endISO, 'metrics', selected);
@@ -1244,10 +1255,10 @@
         chartTH.options.scales.x.max = end.getTime();
         chartTH.update();
         window.__lastSeries = merged;
-        setStatus(`series ok (${merged.length} points)`, 'success');
+        setStatus(`時系列 OK（${merged.length}件）`, 'success');
       }catch(e){
         console.error('series error', e);
-        setStatus('series error', 'error');
+        setStatus('時系列 エラー', 'error');
         const isFile = location.protocol === 'file:' || location.origin === 'null';
         const tip = isFile ? '\n※ 現在 file:// から開いています。ブラウザの制約でクロスオリジンの取得が失敗する場合があります。GitHub Pages など HTTPS ホスティングから開いてください。' : '';
         showError(`時系列データの取得に失敗しました。原因例: device_id 不一致 / ネットワーク / URL / サーバ停止 / CORS（サーバ側で許可が必要）。\n詳細: ${e instanceof DOMException ? e.name : e.message}${tip}`);
