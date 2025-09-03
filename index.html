@@ -1132,11 +1132,12 @@
         const card = document.createElement('div');
         card.className = 'card';
         const label = isWorking ? '作業中' : '離席中';
-        const icon = isWorking ? '🟢' : '🔵';
         const tsTxt = distTs ? new Date(distTs).toLocaleString() : '';
         card.innerHTML = `
-          <div class="metric">${icon} 作業ステータス</div>
-          <div class="value">${label}</div>
+          <div class="metric">作業ステータス</div>
+          <div style="margin-top:8px;">
+            <div id="latestWorkBadge" class="work-badge ${isWorking ? 'working' : 'idle'}">${label}</div>
+          </div>
           <div class="timestamp">${tsTxt ? `⏰ ${tsTxt}` : ''}</div>
         `;
         wrap.appendChild(card);
