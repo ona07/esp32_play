@@ -152,7 +152,7 @@
       white-space: nowrap; line-height: 1;
       animation: heroPulse 1.8s ease-in-out infinite;
     }
-    .card.working-card { border: none; }
+    .card.working-card { border: none; min-height: 140px; display:flex; align-items:center; justify-content:center; }
     /* Away hero (blue) */
     .away-hero {
       display: flex; align-items: center; justify-content: center;
@@ -164,7 +164,7 @@
       white-space: nowrap; line-height: 1;
       animation: heroPulseBlue 1.8s ease-in-out infinite;
     }
-    .card.away-card { border: none; }
+    .card.away-card { border: none; min-height: 140px; display:flex; align-items:center; justify-content:center; }
     @keyframes heroPulseBlue {
       0% { box-shadow: 0 0 0 0 rgba(59,130,246,0.0); }
       50% { box-shadow: 0 0 20px 0 rgba(59,130,246,0.45); }
