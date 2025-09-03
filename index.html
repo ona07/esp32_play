@@ -3,6 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0b0f14" />
+  <link rel="manifest" href="manifest.webmanifest" />
   <title>ESP32 Sensors Monitor</title>
   <meta name="description" content="ESP32 temperature / humidity / ultrasonic monitor UI for GitHub Pages" />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
@@ -1508,7 +1510,11 @@
 
     // ===== Auto refresh (Latest only) =====
     let autoTimer = null;
-    function autoTick(){ loadLatest(); } // Seriesは手動 or 初回のみ
+    function autoTick(){
+      // 自動更新ONのときは最新とグラフ両方を更新
+      loadLatest();
+      loadSeries();
+    }
     function setupAuto(){
       if(autoTimer){ clearInterval(autoTimer); autoTimer = null; }
       if($('#autoRefresh').checked){
@@ -1668,6 +1674,16 @@
       document.body.style.opacity = '1';
       console.log('Page fully loaded');
     });
+  </script>
+  <script>
+    // Register Service Worker for PWA
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./service-worker.js').catch((err) => {
+          console.debug('SW registration failed:', err);
+        });
+      });
+    }
   </script>
 </body>
 </html>

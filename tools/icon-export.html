@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8" />
+<title>Icon Exporter</title>
+<style>
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,'Noto Sans JP',sans-serif;margin:24px;color:#111}
+  .row{display:flex;gap:24px;flex-wrap:wrap}
+  .card{border:1px solid #ddd;border-radius:12px;padding:16px}
+  canvas{background:#f6f7fb;border:1px solid #e5e7eb;border-radius:18%}
+  button{margin-top:8px;padding:8px 12px;border-radius:8px;border:1px solid #ccc;cursor:pointer}
+</style>
+<h1>Icon Exporter</h1>
+<p>SVGをキャンバスに描画して PNG(192/512) をダウンロードできます。エクスポート後、プロジェクト直下に <code>icon-192.png</code> と <code>icon-512.png</code> として追加してください。</p>
+
+<div class="row">
+  <div class="card">
+    <h3>Base (1024)</h3>
+    <canvas id="c1" width="192" height="192"></canvas><br>
+    <button onclick="exportPNG('assets/icons/icon-base.svg',192,'icon-192.png',document.getElementById('c1'))">Export 192</button>
+  </div>
+  <div class="card">
+    <h3>Maskable (1024)</h3>
+    <canvas id="c2" width="512" height="512"></canvas><br>
+    <button onclick="exportPNG('assets/icons/icon-maskable.svg',512,'icon-512.png',document.getElementById('c2'))">Export 512</button>
+  </div>
+  <div class="card">
+    <h3>Both</h3>
+    <button onclick="exportBoth()">Export 192 & 512</button>
+  </div>
+  <script>
+    async function exportPNG(src, size, filename, canvas){
+      const svg = await (await fetch(src)).text();
+      const blob = new Blob([svg], {type:'image/svg+xml'});
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      await new Promise((res,rej)=>{ img.onload=res; img.onerror=rej; img.src=url; });
+      const c = canvas || document.createElement('canvas');
+      c.width = c.height = size;
+      const ctx = c.getContext('2d');
+      ctx.clearRect(0,0,size,size);
+      ctx.drawImage(img, 0,0,size,size);
+      URL.revokeObjectURL(url);
+      const a = document.createElement('a');
+      a.href = c.toDataURL('image/png');
+      a.download = filename;
+      a.click();
+    }
+    async function exportBoth(){
+      await exportPNG('assets/icons/icon-base.svg',192,'icon-192.png', document.getElementById('c1'));
+      await exportPNG('assets/icons/icon-maskable.svg',512,'icon-512.png', document.getElementById('c2'));
+      alert('Exported icon-192.png and icon-512.png');
+    }
+  </script>
+</div>
+</html>
+
