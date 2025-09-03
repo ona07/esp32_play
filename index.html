@@ -575,7 +575,6 @@
       <section class="panel" id="latestPanel">
         <div class="panel-title">
           <h3>最新</h3>
-          <div id="latestWorkBadge" class="work-badge idle">離席中</div>
         </div>
         <div class="cards" id="latestCards"><!-- cards injected here --></div>
       </section>
@@ -1122,6 +1121,30 @@
     function renderLatest(cards){
       const wrap = $('#latestCards');
       wrap.innerHTML = '';
+
+      // Status card (same size as others)
+      let isWorking = null, distVal = null, distTs = null;
+      if (Array.isArray(cards)){
+        const dist = cards.find(r => r.metric === 'distance_ultrasonic');
+        if (dist){ distVal = Number(dist.value); distTs = dist.ts; isWorking = Number.isFinite(distVal) && distVal <= 20; }
+      }
+      if (isWorking !== null){
+        const card = document.createElement('div');
+        card.className = 'card';
+        const label = isWorking ? '作業中' : '離席中';
+        const icon = isWorking ? '🟢' : '🔵';
+        const tsTxt = distTs ? new Date(distTs).toLocaleString() : '';
+        card.innerHTML = `
+          <div class="metric">${icon} 作業ステータス</div>
+          <div class="value">${label}</div>
+          <div class="timestamp">${tsTxt ? `⏰ ${tsTxt}` : ''}</div>
+        `;
+        wrap.appendChild(card);
+        // Update external badges/values if present
+        setWorkBadge(!!isWorking);
+        if (Number.isFinite(distVal)) setWorkDistance(distVal);
+      }
+
       const onlyTH = Array.isArray(cards) ? cards.filter(r => r.metric==='temperature' || r.metric==='humidity') : [];
       for(const r of onlyTH){
         const meta = r.meta || {};
