@@ -571,6 +571,9 @@
       </section>
       <section class="panel" id="latestPanel">
         <h3 style="margin:0 0 16px; font-size:16px;">最新</h3>
+        <div class="btnrow" style="margin-bottom:8px; align-items:center; gap:8px;">
+          <div id="latestWorkBadge" class="work-badge idle">離席中</div>
+        </div>
         <div class="cards" id="latestCards"><!-- cards injected here --></div>
       </section>
     </div>
@@ -1046,11 +1049,19 @@
       const ptsSrc = Array.isArray(distancePoints) && distancePoints.length ? distancePoints : getDistancePointsFromLastSeries();
       const startMs = start.getTime();
       const endMs = end.getTime();
-      // If the selected day is today, only paint up to "now"
-      const todayStart = new Date(); todayStart.setHours(0,0,0,0);
-      const isToday = workDayStart && (workDayStart.getTime() === todayStart.getTime());
+      // Paint rules:
+      // - Past days: full day
+      // - Today: up to now
+      // - Future days: no paint
       const nowMs = Date.now();
-      const visEndMs = isToday ? Math.max(startMs, Math.min(endMs, nowMs)) : endMs;
+      let visEndMs = endMs;
+      if (endMs <= nowMs) {
+        visEndMs = endMs; // past day: full
+      } else if (startMs >= nowMs) {
+        visEndMs = startMs; // future: none
+      } else {
+        visEndMs = Math.max(startMs, Math.min(endMs, nowMs)); // today: up to now
+      }
 
       // ensure x range fixed to selected day
       chartDist.options.scales.x.min = startMs;
@@ -1088,7 +1099,7 @@
           prevState = currState;
         }
       }
-      // close final segment to end of day
+      // close final segment to end of visible window
       if (segStart < visEndMs) {
         segments.push({ state: prevState, x: [segStart, visEndMs] });
       }
@@ -1144,9 +1155,15 @@
 
     function setWorkBadge(isWorking){
       const el = document.getElementById('workBadge');
-      if(!el) return;
-      el.textContent = isWorking ? '作業中' : '離席中';
-      el.className = 'work-badge ' + (isWorking ? 'working' : 'idle');
+      if(el){
+        el.textContent = isWorking ? '作業中' : '離席中';
+        el.className = 'work-badge ' + (isWorking ? 'working' : 'idle');
+      }
+      const el2 = document.getElementById('latestWorkBadge');
+      if(el2){
+        el2.textContent = isWorking ? '作業中' : '離席中';
+        el2.className = 'work-badge ' + (isWorking ? 'working' : 'idle');
+      }
     }
 
     function updateWorkStateFromLatest(arr){
