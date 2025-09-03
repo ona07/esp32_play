@@ -488,6 +488,17 @@
     .actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
     .actions .left { display: flex; gap: 8px; flex-wrap: wrap; }
     .actions .right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+
+    /* Config controls layout override to allow wider inputs */
+    #config .controls { display: grid; grid-template-columns: 1fr; gap: 12px; }
+    @media (min-width: 768px) { #config .controls { grid-template-columns: 1fr 1fr; } }
+    @media (min-width: 1200px) { #config .controls { grid-template-columns: 1fr 1fr; } }
+
+    /* Tiny loading indicator */
+    .loading { display: none; font-size: 12px; color: var(--muted); align-items: center; gap: 6px; }
+    .loading.show { display: inline-flex; }
+    .spinner { width: 12px; height: 12px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
@@ -505,6 +516,7 @@
 
     <div class="top-grid">
       <section class="panel" id="config">
+        <h3 style="margin:0 0 16px; font-size:16px;">接続設定</h3>
         <div class="controls">
         <div>
           <label>API Base</label>
@@ -514,8 +526,6 @@
             <option value="custom">✏️ カスタム入力…</option>
           </select>
           <input id="apiBaseCustom" type="text" placeholder="https://example.com" style="display:none; margin-top:8px;" />
-          <div class="hint">プリセット or カスタムを選択できます。CORS をサーバ側で許可してください。</div>
-          <div class="env">Origin: <span id="originTxt"></span></div>
         </div>
         <div>
           <label>Device ID</label>
@@ -527,16 +537,9 @@
             <option value="custom">✏️ カスタム入力...</option>
           </select>
           <input id="deviceIdCustom" type="text" placeholder="カスタムDevice ID (UUID)" style="display: none; margin-top: 8px;" />
-          <div class="hint">プリセットデバイスを選択するか、カスタム入力でUUIDを指定できます。</div>
         </div>
         
-        <div>
-          <label>Metrics</label>
-          <div class="metric-checks">
-            <label><input type="checkbox" class="metricChk" value="temperature" checked> 温度</label>
-            <label><input type="checkbox" class="metricChk" value="humidity" checked> 湿度</label>
-          </div>
-        </div>
+        
         </div>
         <div class="actions">
           <div class="left">
@@ -565,6 +568,7 @@
         <button id="workPrevBtn" class="secondary">◀ 前日</button>
         <span id="workDayLabel" class="env">--</span>
         <button id="workNextBtn" class="secondary">翌日 ▶</button>
+        <span id="workLoading" class="loading"><span class="spinner"></span>更新中</span>
         <div style="margin-left:auto; display:flex; align-items:center; gap: 12px;">
           <div id="workBadge" class="work-badge idle">離席中</div>
           <div id="workDistance" class="work-distance">-- cm</div>
@@ -581,6 +585,7 @@
         <button id="thPrevBtn" class="secondary">◀ 先週</button>
         <span id="thWeekLabel" class="env">-- 週</span>
         <button id="thNextBtn" class="secondary">翌週 ▶</button>
+        <span id="thLoading" class="loading"><span class="spinner"></span>更新中</span>
       </div>
       <div class="chart-container">
         <canvas id="chartTH"></canvas>
@@ -734,7 +739,7 @@
         apiBaseCustom: $('#apiBaseCustom')?.value?.trim(),
         deviceSelect: $('#deviceSelect').value,
         deviceIdCustom: $('#deviceIdCustom').value.trim(),
-        metrics: $$('.metricChk').filter(c=>c.checked).map(c=>c.value),
+        // metrics selection removed
         auto: $('#autoRefresh').checked,
         // interval selection removed; fixed interval used in code
       };
@@ -752,7 +757,7 @@
         updateApiBaseDisplay();
         if(p.deviceSelect) $('#deviceSelect').value = p.deviceSelect;
         if(p.deviceIdCustom) $('#deviceIdCustom').value = p.deviceIdCustom;
-        if(Array.isArray(p.metrics)) $$('.metricChk').forEach(c=> c.checked = p.metrics.includes(c.value));
+        // metrics selection removed
         if(typeof p.auto==='boolean') $('#autoRefresh').checked = p.auto;
         // interval preference removed
         
@@ -994,6 +999,7 @@
     }
 
     async function loadWorkStatusDay(){
+      document.getElementById('workLoading')?.classList.add('show');
       const base = buildBase();
       const deviceId = getSelectedDeviceId();
       if(!deviceId) return;
@@ -1025,6 +1031,7 @@
         // 失敗時は手元データで描画を試みる
         updateWorkBar();
       } finally {
+        document.getElementById('workLoading')?.classList.remove('show');
         if (controllers.work === controller) controllers.work = null;
       }
     }
@@ -1236,6 +1243,7 @@
     function setThWeekLabel(){ ensureThWeekInit(); const s = new Date(thWeekStart); const e = new Date(s.getTime() + 6*24*3600*1000); const el = document.getElementById('thWeekLabel'); if(el) el.textContent = `${s.toLocaleDateString('ja-JP')} 〜 ${e.toLocaleDateString('ja-JP')}`; }
 
     async function loadSeries(){
+      document.getElementById('thLoading')?.classList.add('show');
       const base = buildBase();
       const deviceId = getSelectedDeviceId();
       if(!deviceId){ showError('Device ID を選択または入力してください'); return; }
@@ -1243,7 +1251,7 @@
       const startISO = start.toISOString();
       const endISO = end.toISOString();
       // seriesでは超音波を取得しない（温度・湿度のみ）
-      const selected = $$('.metricChk').filter(c=>c.checked).map(c=>c.value).filter(m=> m==='temperature' || m==='humidity');
+      const selected = ['temperature','humidity'];
       if(!startISO || !endISO){ setStatus('start/end未設定', 'error'); return; }
       
       setStatus('loading series…', 'loading'); 
@@ -1270,6 +1278,7 @@
         const tip = isFile ? '\n※ 現在 file:// から開いています。ブラウザの制約でクロスオリジンの取得が失敗する場合があります。GitHub Pages など HTTPS ホスティングから開いてください。' : '';
         showError(`時系列データの取得に失敗しました。原因例: device_id 不一致 / ネットワーク / URL / サーバ停止 / CORS（サーバ側で許可が必要）。\n詳細: ${e instanceof DOMException ? e.name : e.message}${tip}`);
       }
+      document.getElementById('thLoading')?.classList.remove('show');
     }
 
     // ===== Removed legacy helpers (ping/self-test) =====
@@ -1453,7 +1462,7 @@
       // 温湿度の週表示ラベル
       ensureThWeekInit();
       setThWeekLabel();
-      $('#originTxt').textContent = location.origin || 'null';
+      // origin text removed
       
       // file:// で開いたら警告
       if(location.protocol === 'file:' || location.origin === 'null'){
