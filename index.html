@@ -920,6 +920,10 @@
       plugins: [daySeparatorPlugin],
       options: {
         ...baseChartOptions.options,
+        plugins: {
+          ...baseChartOptions.options.plugins,
+          daySeparator: { showLabel: true }
+        },
         scales: {
           ...baseChartOptions.options.scales,
           y: { 
