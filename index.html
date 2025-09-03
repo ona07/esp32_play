@@ -19,6 +19,8 @@
       --success: #22c55e;
       --warning: #f59e0b;
       --danger: #ef4444;
+      --glow1: #8b5cf6;       /* purple */
+      --glow2: #22c55e;       /* green */
     }
     
     :root[data-theme="light"] {
@@ -165,6 +167,14 @@
       box-shadow: 0 10px 30px rgba(0,0,0,.35); 
       backdrop-filter: saturate(120%) blur(12px);
       transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .panel::after{
+      content:""; position:absolute; inset:auto -40%  -60px -40%; height:120px;
+      background: radial-gradient(60% 120% at 50% 0%, rgba(139,92,246,0.25), transparent 70%);
+      filter: blur(24px);
+      pointer-events:none;
     }
 
     .controls { 
@@ -326,10 +336,16 @@
     }
     
     .card:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 8px 25px rgba(0,0,0,.2);
+      transform: translateY(-6px) scale(1.01);
+      box-shadow: 0 18px 40px rgba(0,0,0,.45);
     }
     
+    .panel-title h3 {
+      background: linear-gradient(135deg, var(--glow1), var(--glow2));
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+      font-weight: 800;
+    }
+
     .card::before {
       content: '';
       position: absolute;
@@ -337,7 +353,7 @@
       left: 0;
       right: 0;
       height: 3px;
-      background: linear-gradient(90deg, var(--work-blue), var(--work-green));
+      background: linear-gradient(90deg, var(--glow1), var(--glow2));
     }
     
     .metric { 
@@ -915,9 +931,27 @@
       }
     };
 
+    // Glow line for line charts (temperature/humidity)
+    const glowLinePlugin = {
+      id: 'glowLine',
+      afterDatasetsDraw(chart, args, opts){
+        const { ctx } = chart;
+        chart.data.datasets.forEach((ds, i) => {
+          const meta = chart.getDatasetMeta(i);
+          if (meta.type !== 'line' || !chart.isDatasetVisible(i)) return;
+          ctx.save();
+          ctx.shadowBlur = 14;
+          ctx.shadowColor = ds.borderColor || '#fff';
+          ctx.globalAlpha = 0.55;
+          meta.dataset.draw(ctx);
+          ctx.restore();
+        });
+      }
+    };
+
     const chartTH = new Chart(thCtx, {
       ...baseChartOptions,
-      plugins: [daySeparatorPlugin],
+      plugins: [daySeparatorPlugin, glowLinePlugin],
       options: {
         ...baseChartOptions.options,
         plugins: {
