@@ -609,6 +609,7 @@
       <section class="panel" id="latestPanel">
         <div class="panel-title">
           <h3>最新</h3>
+          <div id="latestWorkBadge" class="work-badge idle">離席中</div>
         </div>
         <div class="cards" id="latestCards"><!-- cards injected here --></div>
       </section>
@@ -1229,6 +1230,10 @@
       if (Array.isArray(cards)){
         const dist = cards.find(r => r.metric === 'distance_ultrasonic');
         if (dist){ distVal = Number(dist.value); distTs = dist.ts; isWorking = Number.isFinite(distVal) && distVal <= 20; }
+      }
+      if (isWorking !== null){
+        // Always reflect status to the header badge
+        setWorkBadge(!!isWorking);
       }
       if (isWorking === true){
         const card = document.createElement('div');
