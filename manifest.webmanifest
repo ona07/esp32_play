@@ -18,13 +18,13 @@
       "type": "image/png"
     },
     {
-      "src": "assets/icons/icon-base.svg",
+      "src": "assets/icon-base.svg",
       "sizes": "1024x1024",
       "type": "image/svg+xml",
       "purpose": "any"
     },
     {
-      "src": "assets/icons/icon-maskable.svg",
+      "src": "assets/icon-maskable.svg",
       "sizes": "1024x1024",
       "type": "image/svg+xml",
       "purpose": "any maskable"

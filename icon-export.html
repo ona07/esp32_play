@@ -16,12 +16,12 @@
   <div class="card">
     <h3>Base (1024)</h3>
     <canvas id="c1" width="192" height="192"></canvas><br>
-    <button onclick="exportPNG('assets/icons/icon-base.svg',192,'icon-192.png',document.getElementById('c1'))">Export 192</button>
+    <button onclick="exportPNG('assets/icon-base.svg',192,'icon-192.png',document.getElementById('c1'))">Export 192</button>
   </div>
   <div class="card">
     <h3>Maskable (1024)</h3>
     <canvas id="c2" width="512" height="512"></canvas><br>
-    <button onclick="exportPNG('assets/icons/icon-maskable.svg',512,'icon-512.png',document.getElementById('c2'))">Export 512</button>
+    <button onclick="exportPNG('assets/icon-maskable.svg',512,'icon-512.png',document.getElementById('c2'))">Export 512</button>
   </div>
   <div class="card">
     <h3>Both</h3>
@@ -46,11 +46,10 @@
       a.click();
     }
     async function exportBoth(){
-      await exportPNG('assets/icons/icon-base.svg',192,'icon-192.png', document.getElementById('c1'));
-      await exportPNG('assets/icons/icon-maskable.svg',512,'icon-512.png', document.getElementById('c2'));
+      await exportPNG('assets/icon-base.svg',192,'icon-192.png', document.getElementById('c1'));
+      await exportPNG('assets/icon-maskable.svg',512,'icon-512.png', document.getElementById('c2'));
       alert('Exported icon-192.png and icon-512.png');
     }
   </script>
 </div>
 </html>
-
