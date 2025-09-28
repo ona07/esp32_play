@@ -29,10 +29,11 @@ static const int SERVO_PIN = 18;
 static const int FREQ_HZ   = 50;
 static const int PULSE_MIN = 500;
 static const int PULSE_MAX = 2400;
-int angle_idle  = 10;
-int angle_press = 95;
+int angle_idle     = 90;
+int angle_press_on = 120;
+int angle_press_off = 60;
 int press_hold_ms = 600;
-int cooldown_ms   = 1500;
+int cooldown_ms   = 800;
 
 Servo servo;
 unsigned long lastAction = 0;
@@ -120,7 +121,10 @@ return status.startsWith("HTTP/1.1 200");
 
 /// ====== サーボ動作 ======
 bool runServoOnce(const String& cmd, String& err) {
-  servo.write(angle_press);
+  int targetAngle = angle_press_on;
+  if (cmd == "off") targetAngle = angle_press_off;
+
+  servo.write(targetAngle);
   delay(press_hold_ms);
   servo.write(angle_idle);
   return true; // 今は常に成功とみなす
