@@ -10,9 +10,6 @@
 #include <cstring>
 
 // ---- Pins ----
-const uint8_t TRIG_PIN = 5;
-const uint8_t ECHO_PIN = 16;
-const uint8_t LED_PIN  = 23;
 const uint8_t DHT_PIN  = 4;     // DHT11 DATA
 #define DHTTYPE DHT11
 
@@ -24,12 +21,8 @@ const char* API_BASE  = "https://esp32-play.onrender.com"; // 末尾スラッシ
 const char* API_KEY   = "REPLACE_WITH_DEVICE_API_KEY";     // サーバの devices.api_key
 
 // ---- Timing / Logic Config ----
-static const unsigned long PULSE_TIMEOUT_US   = 30000UL;
 static const unsigned long DHT_MIN_INTERVALMS = 2000UL;  // DHT11は>=1s推奨（読み取り間隔の下限）
-static const unsigned long LOOP_INTERVAL_MS   = 500UL;   // 距離更新周期
-// static const unsigned long PERIODIC_SEND_MS   = 30000UL; // 未使用: 未同期フォールバックは行わない
-static const float DIST_WORK_THRESHOLD_CM     = 20.0f;    // 作業中の閾値
-static const float DEFAULT_TEMP_C = 20.0f;
+static const unsigned long LOOP_INTERVAL_MS   = 500UL;   // メインループ周期
 constexpr uint8_t DHT_READ_RETRY_COUNT = 3;
 constexpr uint8_t DHT_FAIL_REINIT_THRESHOLD = 4;
 constexpr unsigned long DHT_REINIT_COOLDOWN_MS = 2000UL;
@@ -47,11 +40,8 @@ constexpr uint8_t LCD_CUSTOM_CHAR_BASE = 1;
 DHT dht(DHT_PIN, DHTTYPE);
 float lastTempC = NAN, lastHum = NAN;
 unsigned long lastDhtReadMs = 0;
-unsigned long lastPeriodicSendMs = 0;
 uint8_t dhtConsecutiveFails = 0;
 unsigned long lastDhtReinitMs = 0;
-bool lastWorkState = false;       // false: 離席中, true: 作業中
-bool workStateInited = false;
 
 WiFiClientSecure https;
 // NTP / 時刻同期
@@ -77,12 +67,10 @@ bool lcdAnnounced = false;
 
 constexpr uint8_t LCD_ICON_HUMIDITY = LCD_CUSTOM_CHAR_BASE + 0;
 constexpr uint8_t LCD_ICON_TEMP = LCD_CUSTOM_CHAR_BASE + 1;
-constexpr uint8_t LCD_ICON_STATE = LCD_CUSTOM_CHAR_BASE + 2;
 
 const uint8_t LCD_CUSTOM_CHARS[][8] = {
     {0b00000, 0b00100, 0b01010, 0b01010, 0b10001, 0b10001, 0b10001, 0b01110},  // droplet
     {0b00100, 0b00100, 0b00100, 0b00100, 0b01110, 0b11111, 0b11111, 0b01110},  // thermometer
-    {0b00100, 0b01110, 0b00100, 0b01110, 0b10101, 0b00100, 0b01010, 0b10001},  // person
 };
 constexpr size_t LCD_CUSTOM_CHAR_COUNT = sizeof(LCD_CUSTOM_CHARS) / sizeof(LCD_CUSTOM_CHARS[0]);
 
@@ -112,26 +100,7 @@ bool httpPostIngest(const String &json) {
   return (code >= 200 && code < 300);
 }
 
-bool sendDistance(float cm, const char* cause, const char* zone=nullptr) {
-  if (isnan(cm)) return false;
-  String body;
-  body.reserve(160);
-  body += "[";
-  body += "{\"metric\":\"distance_ultrasonic\",\"value\":";
-  body += String(cm, 2);
-  body += ",\"meta\":{\"src\":\"esp32\",\"cause\":\"";
-  body += jsonEscape(String(cause));
-  body += "\"";
-  if (zone && zone[0]) {
-    body += ",\"zone\":\"";
-    body += jsonEscape(String(zone));
-    body += "\"";
-  }
-  body += "}}]";
-  return httpPostIngest(body);
-}
-
-bool sendPeriodicAll(float dist_cm, float temp_c, float hum, bool working) {
+bool sendPeriodicAll(float temp_c, float hum) {
   // current values as a single POST array
   String body; body.reserve(256);
   body += '[';
@@ -148,14 +117,6 @@ bool sendPeriodicAll(float dist_cm, float temp_c, float hum, bool working) {
     pushComma();
     body += "{\"metric\":\"temperature\",\"value\":"; body += String(temp_c,2);
     body += ",\"meta\":{\"src\":\"esp32\",\"cause\":\"periodic\"}}";
-  }
-  // distance
-  if (!isnan(dist_cm)) {
-    pushComma();
-    body += "{\"metric\":\"distance_ultrasonic\",\"value\":"; body += String(dist_cm,2);
-    body += ",\"meta\":{\"src\":\"esp32\",\"cause\":\"periodic\",\"zone\":\"";
-    body += working ? "UNDER_OR_EQ_20cm" : "OVER_GT_20cm";
-    body += "\"}}";
   }
   body += ']';
   if (first) return true; // nothing to send
@@ -346,7 +307,7 @@ void formatSensorValue(char *out, size_t len, float value, float minAllowed, flo
   snprintf(out, len, "%4.1f", value);
 }
 
-void updateLcd(float distanceCm, float tempC, float humidity, bool working) {
+void updateLcd(float tempC, float humidity) {
   if (!lcd) return;
   unsigned long now = millis();
   if (now - lastLcdUpdateMs < LCD_UPDATE_INTERVAL_MS) {
@@ -358,25 +319,15 @@ void updateLcd(float distanceCm, float tempC, float humidity, bool working) {
   char timeBuf[9];
   snprintf(timeBuf, sizeof(timeBuf), "%02d:%02d:%02d",
            clockTime.hour(), clockTime.minute(), clockTime.second());
+  char line0[17];
+  snprintf(line0, sizeof(line0), "Time %s", timeBuf);
 
-  char distBuf[5];
-  formatSensorValue(distBuf, sizeof(distBuf), distanceCm, 0.0f, 99.9f);
   char tempBuf[5];
   formatSensorValue(tempBuf, sizeof(tempBuf), tempC, -9.9f, 99.9f);
   char humBuf[5];
   formatSensorValue(humBuf, sizeof(humBuf), humidity, 0.0f, 99.9f);
-
-  uint8_t line0[LCD_COLS];
   uint8_t line1[LCD_COLS];
-  memset(line0, ' ', sizeof(line0));
   memset(line1, ' ', sizeof(line1));
-
-  line0[0] = LCD_ICON_STATE;
-  line0[1] = static_cast<uint8_t>(working ? 'W' : 'A');
-  memcpy(&line0[2], timeBuf, 8);
-  line0[10] = static_cast<uint8_t>(' ');
-  line0[11] = static_cast<uint8_t>('D');
-  memcpy(&line0[12], distBuf, 4);
 
   line1[0] = LCD_ICON_TEMP;
   memcpy(&line1[1], tempBuf, 4);
@@ -386,10 +337,7 @@ void updateLcd(float distanceCm, float tempC, float humidity, bool working) {
   memcpy(&line1[8], humBuf, 4);
   line1[12] = static_cast<uint8_t>('%');
 
-  lcd->setCursor(0, 0);
-  for (uint8_t i = 0; i < LCD_COLS; ++i) {
-    lcd->write(line0[i]);
-  }
+  lcdPrintLine(0, line0);
   lcd->setCursor(0, 1);
   for (uint8_t i = 0; i < LCD_COLS; ++i) {
     lcd->write(line1[i]);
@@ -401,28 +349,8 @@ void updateLcd(float distanceCm, float tempC, float humidity, bool working) {
   }
 }
 
-// 音速(cm/μs)
-static inline float soundSpeed_cm_per_us(float tempC) {
-  const float c_ms = 331.3f + 0.606f * tempC;
-  return (c_ms * 100.0f) / 1e6f;
-}
-
-// 超音波1回測距（cm）
-float measureOnceCm(float tempC) {
-  digitalWrite(TRIG_PIN, LOW); delayMicroseconds(2);
-  digitalWrite(TRIG_PIN, HIGH); delayMicroseconds(10);
-  digitalWrite(TRIG_PIN, LOW);
-  unsigned long dur = pulseIn(ECHO_PIN, HIGH, PULSE_TIMEOUT_US);
-  if (dur == 0) return NAN;
-  return dur * soundSpeed_cm_per_us(tempC) * 0.5f;
-}
-
 void setup() {
   Serial.begin(115200);
-  pinMode(TRIG_PIN, OUTPUT);
-  pinMode(ECHO_PIN, INPUT);
-  pinMode(LED_PIN, OUTPUT);
-  digitalWrite(LED_PIN, LOW);
   beginDhtSensor();
   lastDhtReinitMs = millis();
   initLcd();
@@ -466,7 +394,7 @@ void setup() {
     Serial.println("WiFi connect timeout");
     lcdPrintLine(1, "WiFi timeout");
   }
-  updateLcd(NAN, NAN, NAN, false);
+  updateLcd(NAN, NAN);
 }
 
 void loop() {
@@ -492,84 +420,52 @@ void loop() {
     lastDhtReadMs = now;
   }
 
-  // 温度が未取得ならデフォルト
-  float tempForCalc = isnan(lastTempC) ? DEFAULT_TEMP_C : lastTempC;
-
-  // 距離計測
-  float d_cm = measureOnceCm(tempForCalc);
   float displayTempC = isnan(lastTempC) ? NAN : lastTempC;
   float displayHum = isnan(lastHum) ? NAN : lastHum;
-  bool working = (!isnan(d_cm) && (d_cm <= DIST_WORK_THRESHOLD_CM));
-
-  // 出力＆LED
-  if (isnan(d_cm)) {
-    Serial.println("Distance: NaN, DHT: "
-                   + String(isnan(lastHum) ? -1 : lastHum, 1) + "% "
-                   + String(isnan(lastTempC) ? DEFAULT_TEMP_C : lastTempC, 1) + "C");
-    digitalWrite(LED_PIN, LOW);
+  if (isnan(displayTempC) && isnan(displayHum)) {
+    Serial.println("DHT: waiting for valid temperature/humidity sample...");
   } else {
-    float tC = isnan(lastTempC) ? DEFAULT_TEMP_C : lastTempC;
-    float h  = isnan(lastHum) ? -1 : lastHum;
-    Serial.printf("Humidity: %.1f %%\tTemperature: %.2f *C (%.2f *F)\tDistance: %.2f cm\n",
-                  h, tC, tC * 1.8f + 32.0f, d_cm);
-    // LED threshold aligned to work threshold (20cm)
-    digitalWrite(LED_PIN, working ? HIGH : LOW);
+    String humStr = isnan(displayHum) ? String("NaN") : String(displayHum, 1);
+    String tempStr = isnan(displayTempC) ? String("NaN") : String(displayTempC, 2);
+    String tempFStr = isnan(displayTempC) ? String("NaN") : String(displayTempC * 1.8f + 32.0f, 2);
+    Serial.printf("Humidity: %s %%\tTemperature: %s *C (%s *F)\n",
+                  humStr.c_str(), tempStr.c_str(), tempFStr.c_str());
+  }
 
-    // --- 作業状態（20cm閾値） ---
-    if (!workStateInited) {
-      const char* zone = working ? "UNDER_OR_EQ_20cm" : "OVER_GT_20cm";
-      bool ok = sendDistance(d_cm, "boot", zone);
-      Serial.printf("[SEND][BOOT] %.2f cm (%s) %s\n", d_cm, zone, ok?"OK":"NG");
-      lastWorkState = working;
-      workStateInited = true;
-    }
-
-    // 1) 境界イベント送信（状態変化時に1回）
-    if (working != lastWorkState) {
-      const char* zone = working ? "UNDER_OR_EQ_20cm" : "OVER_GT_20cm";
-      bool ok = sendDistance(d_cm, "edge", zone);
-      Serial.printf("[SEND][EDGE] %.2f cm -> %s %s\n", d_cm, zone, ok?"OK":"NG");
-      lastWorkState = working;
-    }
-
-    // 2) 定期送信（00分 / 30分のみ）
-    //    未同期時は一切送信しない。ループ内で定期的に再同期を試みる。
-    //    同期が成功したら、その時点のスロットを記録して重複送信を防ぐ。
-    // 再同期トライ
-    if (!timeIsSynced && (millis() - lastTimeSyncAttemptMs >= 5000UL)) {
-      struct tm tmInfo;
-      if (getLocalTime(&tmInfo, 1000)) {
-        timeIsSynced = true;
-        time_t nowEpoch = time(nullptr);
-        lastPeriodicSlot = (nowEpoch > 0) ? (nowEpoch / 1800) : -1;
-        Serial.println("Time synced (retry): periodic sends will align to 00/30.");
-        syncClocksFromEpoch(nowEpoch, millis());
-      }
-      lastTimeSyncAttemptMs = millis();
-    }
-
-    bool shouldSendPeriodic = false;
-    if (timeIsSynced) {
+  if (!timeIsSynced && (now - lastTimeSyncAttemptMs >= 5000UL)) {
+    struct tm tmInfo;
+    if (getLocalTime(&tmInfo, 1000)) {
+      timeIsSynced = true;
       time_t nowEpoch = time(nullptr);
-      if (nowEpoch > 0) {
-        long slot = nowEpoch / 1800; // 30分=1800秒単位
-        if (slot != lastPeriodicSlot) {
-          // 新しいスロットに切り替わった瞬間に1回だけ送信
-          shouldSendPeriodic = true;
-          lastPeriodicSlot = slot;
-        }
-      }
+      lastPeriodicSlot = (nowEpoch > 0) ? (nowEpoch / 1800) : -1;
+      Serial.println("Time synced (retry): periodic sends will align to 00/30.");
+      syncClocksFromEpoch(nowEpoch, now);
     }
+    lastTimeSyncAttemptMs = now;
+  }
 
-    if (shouldSendPeriodic) {
-      float tCsend = isnan(lastTempC) ? DEFAULT_TEMP_C : lastTempC;
-      float hsend  = isnan(lastHum) ? NAN : lastHum;
-      bool ok = sendPeriodicAll(d_cm, tCsend, hsend, working);
-      Serial.printf("[SEND][PERIODIC] T=%.2fC H=%.1f%% D=%.2fcm %s\n", tCsend, hsend, d_cm, ok?"OK":"NG");
+  bool shouldSendPeriodic = false;
+  if (timeIsSynced) {
+    time_t nowEpoch = time(nullptr);
+    if (nowEpoch > 0) {
+      long slot = nowEpoch / 1800; // 30分=1800秒単位
+      if (slot != lastPeriodicSlot) {
+        // 新しいスロットに切り替わった瞬間に1回だけ送信
+        shouldSendPeriodic = true;
+        lastPeriodicSlot = slot;
+      }
     }
   }
 
-  updateLcd(d_cm, displayTempC, displayHum, working);
+  if (shouldSendPeriodic && (!isnan(displayTempC) || !isnan(displayHum))) {
+    float tCsend = displayTempC;
+    float hsend  = displayHum;
+    bool ok = sendPeriodicAll(tCsend, hsend);
+    Serial.printf("[SEND][PERIODIC] T=%.2fC H=%.1f%% %s\n",
+                  tCsend, hsend, ok ? "OK" : "NG");
+  }
+
+  updateLcd(displayTempC, displayHum);
   maybeRefreshRtc(now);
 
   delay(LOOP_INTERVAL_MS);
