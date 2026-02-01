@@ -7,10 +7,14 @@
 #include <INA226_WE.h>
 
 // ---- Config (replace placeholders) ----
-const char* WIFI_SSID = "aterm-ea809c-g";
-const char* WIFI_PASS = "636bed4138a9f";
-const char* SUPABASE_REST_URL = "https://kpjkxzsdknymopwpppfp.supabase.co/rest/v1/power_logs";
-const char* SUPABASE_API_KEY  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtwamt4enNka255bW9wd3BwcGZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY1MjY0ODgsImV4cCI6MjA3MjEwMjQ4OH0.n1o1c50_iTL2rRYTAnITONXP4sma0gSl5xyihapArMI";
+const char* WIFI_SSID = "YOUR_WIFI_SSID";
+const char* WIFI_PASS = "YOUR_WIFI_PASSWORD";
+/// ====== Supabase (REST) ======
+// 例: "https://PROJECT.supabase.co/rest/v1/protein_logs"
+const char* SUPABASE_REST_URL = "https://PROJECT.supabase.co/rest/v1/protein_logs";
+// Project API keys -> anon（RLSで insert/select を許可する場合）
+const char* SUPABASE_API_KEY  = "SUPABASE_ANON_KEY";
+// devices.id 等、識別したいID（任意）
 const char* SUPABASE_DEVICE_ID = "esp32-ina-001";
 
 constexpr unsigned long SAMPLE_INTERVAL_MS   = 5000UL;    // Sensor print interval
